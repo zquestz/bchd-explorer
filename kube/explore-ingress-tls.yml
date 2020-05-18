@@ -1,0 +1,32 @@
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: explore-ingress
+  namespace: default
+  annotations:
+    kubernetes.io/tls-acme: "true"
+    kubernetes.io/ingress.class: "nginx"
+spec:
+  tls:
+  - hosts:
+    - www.explore.cash
+    - explore.cash
+    secretName: explore-tls
+  backend:
+    serviceName: explore
+    servicePort: 102
+  rules:
+  - host: explore.cash
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: explore
+          servicePort: 102
+  - host: www.explore.cash
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: explore
+          servicePort: 102
