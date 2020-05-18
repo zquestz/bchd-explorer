@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: default
+  labels:
+    service: explore
+  name: explore
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      service: explore
+  template:
+    metadata:
+      labels:
+        service: explore
+    spec:
+      containers:
+      - image: zquestz/bchd-explorer:latest
+        imagePullPolicy: Always
+        name: explore
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "16Mi"
+      restartPolicy: Always
