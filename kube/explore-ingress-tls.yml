@@ -1,4 +1,4 @@
-apiVersion: networking.k8s.io/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: explore-ingress
@@ -12,21 +12,29 @@ spec:
     - www.explore.cash
     - explore.cash
     secretName: explore-tls
-  backend:
-    serviceName: explore
-    servicePort: 102
+  defaultBackend:
+    service:
+      name: explore
+      port:
+        number: 102
   rules:
   - host: explore.cash
     http:
       paths:
       - path: /
+        pathType: ImplementationSpecific
         backend:
-          serviceName: explore
-          servicePort: 102
+          service:
+            name: explore
+            port:
+              number: 102
   - host: www.explore.cash
     http:
       paths:
       - path: /
+        pathType: ImplementationSpecific
         backend:
-          serviceName: explore
-          servicePort: 102
+          service:
+            name: explore
+            port:
+              number: 102
