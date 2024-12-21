@@ -1,6 +1,6 @@
 # BCHD Explorer
 
-Simple block explorer for the BCHD gRPC API with SLP token support.
+Simple block explorer for the BCHD gRPC API with SLP and Cash Tokens support.
 
 ## Project setup
 ```

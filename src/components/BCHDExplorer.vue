@@ -84,6 +84,7 @@ import sb from "satoshi-bitcoin";
 import prettyBytes from "pretty-bytes";
 
 const TESTNET3 = "testnet3";
+const TESTNET4 = "testnet4";
 const MAINNET = "mainnet";
 
 export default {
@@ -114,39 +115,19 @@ export default {
           network: MAINNET,
         },
         {
-          url: "https://bchd-mainnet.electroncash.de:8335",
-          name: "bchd-mainnet.electroncash.de",
-          network: MAINNET,
-        },
-        {
-          url: "https://bchd.fountainhead.cash",
-          name: "bchd.fountainhead.cash",
-          network: MAINNET,
-        },
-        {
-          url: "https://bchd.imaginary.cash:8335",
-          name: "bchd.imaginary.cash",
-          network: MAINNET,
-        },
-        {
           url: "https://localhost:8335",
           name: "localhost:8335",
           network: MAINNET,
         },
         {
-          url: "https://bchd-testnet.electroncash.de:18335",
-          name: "bchd-testnet.electroncash.de",
-          network: TESTNET3,
-        },
-        {
           url: "https://bchd-testnet.greyh.at:18335",
           name: "bchd-testnet.greyh.at",
-          network: TESTNET3,
+          network: TESTNET4,
         },
         {
           url: "https://localhost:18335",
           name: "localhost:18335",
-          network: TESTNET3,
+          network: TESTNET4,
         },
       ],
       selectedNetwork: "https://bchd.greyh.at:8335",
@@ -530,7 +511,9 @@ export default {
       this.blockData = this.defaultBlockData();
       this.transaction = "";
       this.transactionData = this.defaultTransactionData();
-      this.testnet = this.selectedNetwork.includes("testnet") || this.selectedNetwork.includes("18335")
+      this.testnet =
+        this.selectedNetwork.includes("testnet") ||
+        this.selectedNetwork.includes("18335");
     },
     defaultAddressData: function () {
       return {
