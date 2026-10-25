@@ -10,11 +10,12 @@
     "test": "vue-cli-service test:unit"
   },
   "dependencies": {
+    "@improbable-eng/grpc-web": "^0.15.0",
     "bchaddrjs-slp": "^0.2.12",
     "big.js": "^5.2.2",
     "core-js": "^3.6.5",
     "flush-promises": "^1.0.2",
-    "grpc-bchrpc-web": "^0.15.0",
+    "google-protobuf": "^3.21.4",
     "jest": "^25.5.4",
     "pretty-bytes": "^5.4.1",
     "satoshi-bitcoin": "^1.0.4",

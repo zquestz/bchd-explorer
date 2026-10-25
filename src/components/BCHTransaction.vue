@@ -86,6 +86,28 @@
           <td>Confirmations</td>
           <td>{{transactionData['confirmations']}}</td>
         </tr>
+        <tr v-if="transactionData['dsproof_score'] !== null">
+          <td>Double Spend Proof Score</td>
+          <td>{{dsproofScoreLabel(transactionData['dsproof_score'], transactionData['dsproof'])}}</td>
+        </tr>
+        <tr v-if="transactionData['dsproof'] === false">
+          <td>Double Spend Proof</td>
+          <td>None</td>
+        </tr>
+        <template v-if="transactionData['dsproof']">
+          <tr style="color:red;">
+            <td>Double Spend Proof</td>
+            <td>{{transactionData['dsproof'].hash}}</td>
+          </tr>
+          <tr style="color:red;">
+            <td>Double Spent Output</td>
+            <td>{{transactionData['dsproof'].outpoint}}</td>
+          </tr>
+          <tr v-if="transactionData['dsproof'].ancestor" style="color:red;">
+            <td>Double Spent Ancestor</td>
+            <td>{{transactionData['dsproof'].ancestor}}</td>
+          </tr>
+        </template>
         <tr>
           <td>Block Height</td>
           <td>{{transactionData['block_height']}}</td>
@@ -109,6 +131,24 @@
           <td>Index</td>
           <td>{{item.getIndex()}}</td>
         </tr>
+        <template v-if="item.cashToken">
+          <tr>
+            <td>CashToken Category</td>
+            <td>{{item.cashToken.category}}</td>
+          </tr>
+          <tr v-if="item.cashToken.amount !== undefined">
+            <td>CashToken Amount</td>
+            <td>{{item.cashToken.amount}}</td>
+          </tr>
+          <tr v-if="item.cashToken.nft">
+            <td>CashToken NFT Capability</td>
+            <td>{{item.cashToken.nft.capability}}</td>
+          </tr>
+          <tr v-if="item.cashToken.nft && item.cashToken.nft.commitment">
+            <td>CashToken NFT Commitment</td>
+            <td>{{item.cashToken.nft.commitment}}</td>
+          </tr>
+        </template>
         <tr v-if="item.token">
           <td>SLP Token</td>
           <td v-if="!item.token.isBurned">{{item.token.isMintBaton ? "MINT BATON": item.token.amount}} {{item.token.isMintBaton ? "" : item.token.ticker}}</td>
@@ -161,6 +201,24 @@
           <td>Index</td>
           <td>{{item.getIndex()}}</td>
         </tr>
+        <template v-if="item.cashToken">
+          <tr>
+            <td>CashToken Category</td>
+            <td>{{item.cashToken.category}}</td>
+          </tr>
+          <tr v-if="item.cashToken.amount !== undefined">
+            <td>CashToken Amount</td>
+            <td>{{item.cashToken.amount}}</td>
+          </tr>
+          <tr v-if="item.cashToken.nft">
+            <td>CashToken NFT Capability</td>
+            <td>{{item.cashToken.nft.capability}}</td>
+          </tr>
+          <tr v-if="item.cashToken.nft && item.cashToken.nft.commitment">
+            <td>CashToken NFT Commitment</td>
+            <td>{{item.cashToken.nft.commitment}}</td>
+          </tr>
+        </template>
         <tr v-if="item.token">
           <td>SLP Token</td>
           <td>{{item.token.isMintBaton ? "MINT BATON" : item.token.amount}} {{item.token.isMintBaton ? "" : transactionData.token_metadata.ticker}}</td>
@@ -191,6 +249,26 @@ export default {
   name: "bchtransaction",
   props: ["transaction", "transactionData"],
   methods: {
+    // dsproofScoreLabel explains a GetDoubleSpendProofScore result. proof is
+    // the proof found, false when there is none, or null when unknown.
+    dsproofScoreLabel: function(score, proof) {
+      if (score === 1) {
+        return "1 (no double spend seen, and every input can get a proof)";
+      }
+      if (score === 0.25) {
+        return "0.25 (some inputs cannot be fully checked)";
+      }
+      if (score === 0) {
+        if (proof) {
+          return "0 (double spend detected)";
+        }
+        if (proof === false) {
+          return "0 (spends outputs no proof can cover)";
+        }
+        return "0 (double spend detected, or outputs no proof can cover)";
+      }
+      return String(score);
+    },
     convertHash: function(bytes) {
       return Array.from(bytes, function(byte) {
         return ("0" + (byte & 0xff).toString(16)).slice(-2);

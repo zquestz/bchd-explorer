@@ -53,17 +53,20 @@
         </tr>
       </tbody>
     </table>
+    <CashTokenAddress :tokens="addressData['cashtokens']" />
     <SLPAddress :tokens="addressData['tokens']" />
   </div>
 </template>
 
 <script>
 import SLPAddress from "./SLPAddress.vue";
+import CashTokenAddress from "./CashTokenAddress.vue";
 export default {
   name: "bchaddress",
   props: ["address", "addressData"],
   components: {
-    SLPAddress
+    SLPAddress,
+    CashTokenAddress
   }
 };
 </script>

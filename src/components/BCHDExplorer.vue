@@ -75,7 +75,7 @@
 
 <script>
 import Big from "big.js";
-import { GrpcClient } from "grpc-bchrpc-web";
+import { BchrpcClient, GrpcCode, pb } from "../bchrpc";
 import bchaddr from "bchaddrjs-slp";
 import BCHAddress from "./BCHAddress.vue";
 import BCHBlock from "./BCHBlock.vue";
@@ -83,9 +83,22 @@ import BCHTransaction from "./BCHTransaction.vue";
 import sb from "satoshi-bitcoin";
 import prettyBytes from "pretty-bytes";
 
-const TESTNET3 = "testnet3";
 const TESTNET4 = "testnet4";
 const MAINNET = "mainnet";
+
+// Maps the node's reported network (GetBlockchainInfoResponse.BitcoinNet) to
+// the names used in routes, e.g. 5 to "chipnet".
+const NETWORK_NAMES = Object.fromEntries(
+  Object.entries(pb.GetBlockchainInfoResponse.BitcoinNet).map(
+    ([name, value]) => [value, name.toLowerCase()]
+  )
+);
+
+// CashToken bitfield flags and NFT capabilities, from the CashTokens spec.
+const CASHTOKEN_HAS_AMOUNT = 0x10;
+const CASHTOKEN_HAS_NFT = 0x20;
+const CASHTOKEN_CAPABILITY_MASK = 0x0f;
+const CASHTOKEN_CAPABILITIES = ["immutable", "mutable", "minting"];
 
 export default {
   name: "explorer",
@@ -100,7 +113,7 @@ export default {
       infoResult: " ",
       input: "",
       grpc: null,
-      testnet: false,
+      network: MAINNET,
       address: "",
       addressData: this.defaultAddressData(),
       transaction: "",
@@ -193,7 +206,7 @@ export default {
       this.result = "No address, transaction or block hash/height found.";
     },
     determineNetwork: function () {
-      return this.testnet ? TESTNET3 : MAINNET;
+      return this.network;
     },
     populateAddressData: async function (addr) {
       try {
@@ -297,6 +310,11 @@ export default {
           }
         });
         this.addressData["tokens"] = Array.from(_tokens).map((v) => v[1]);
+        this.addressData["cashtokens"] = this.summarizeCashTokens(
+          addrUtxoResult
+            .getOutputsList()
+            .map((a) => this.parseCashToken(a.getCashToken()))
+        );
       } catch (error) {
         this.result = "Address not found.";
       }
@@ -383,6 +401,7 @@ export default {
         let outputAmt = Big(0);
         // loop through txn outputs set view data for slp tokens
         this.transactionData["outputs"].forEach((o) => {
+          o.cashToken = this.parseCashToken(o.getCashToken());
           o.token = undefined;
           if (o.getSlpToken()) {
             let tok = o.getSlpToken();
@@ -428,6 +447,7 @@ export default {
         // loop through txn inputs to populate slp token view data
         const dat = this.transactionData;
         this.transactionData["inputs"].forEach((i) => {
+          i.cashToken = this.parseCashToken(i.getCashToken());
           i.token = undefined;
           if (i.getSlpToken()) {
             let tok = i.getSlpToken();
@@ -498,10 +518,109 @@ export default {
         } else if (inputAmtMap.size > 0) {
           dat.burns_from_other_tokens = true;
         }
+        if (dat.confirmations === 0) {
+          // Not awaited so the transaction shows without waiting on proofs.
+          this.populateDoubleSpendProof(input, dat);
+        }
         return true;
       } catch (error) {
         return false;
       }
+    },
+    populateDoubleSpendProof: async function (txid, dat) {
+      const client = this.grpc;
+      const query = { hash: txid, reversedHashOrder: true };
+      // Both calls fail with Unavailable when the node runs with
+      // --nodoublespendproof, and Unimplemented before bchd 0.22.3; the
+      // rows then stay hidden.
+      const [score, proof] = await Promise.all([
+        client
+          .getDoubleSpendProofScore(query)
+          .then((res) => res.getScore())
+          .catch(() => null),
+        client
+          .getDoubleSpendProof(query)
+          .then((res) => this.parseDoubleSpendProof(res))
+          .catch((error) =>
+            error && error.code === GrpcCode.NotFound ? false : null
+          ),
+      ]);
+      if (client !== this.grpc || dat !== this.transactionData) {
+        // Another search or server change happened while this ran.
+        return;
+      }
+      dat.dsproof_score = score;
+      // false means the node has no proof; null means the lookup failed.
+      dat.dsproof = proof;
+    },
+    parseDoubleSpendProof: function (res) {
+      const proof = res.getProof();
+      const outpoint = proof.getOutpoint();
+      const path = res.getPathList_asU8().map((h) => this.convertHash(h));
+      return {
+        hash: this.convertHash(proof.getHash_asU8()),
+        outpoint: outpoint
+          ? `${this.convertHash(outpoint.getHash_asU8())}:${outpoint.getIndex()}`
+          : "",
+        // When the proof is for an unconfirmed ancestor, path runs from the
+        // transaction looked up to that ancestor.
+        ancestor: path.length > 1 ? path[path.length - 1] : "",
+      };
+    },
+    // parseCashToken turns a pb.CashToken into display data, or undefined
+    // when the input or output holds no token.
+    parseCashToken: function (ct) {
+      if (!ct) {
+        return undefined;
+      }
+      const bitfield = ct.getBitfield_asU8()[0] || 0;
+      const token = {
+        // Category IDs are txids and display in reversed byte order.
+        category: this.convertHash(ct.getCategoryId_asU8()),
+        amount: undefined,
+        nft: undefined,
+      };
+      if (bitfield & CASHTOKEN_HAS_AMOUNT) {
+        // A string, as uint64 amounts can exceed Number's precision.
+        token.amount = ct.getAmount();
+      }
+      if (bitfield & CASHTOKEN_HAS_NFT) {
+        token.nft = {
+          capability:
+            CASHTOKEN_CAPABILITIES[bitfield & CASHTOKEN_CAPABILITY_MASK] ||
+            "unknown",
+          commitment: Buffer.from(ct.getCommitment_asU8()).toString("hex"),
+        };
+      }
+      return token;
+    },
+    // summarizeCashTokens totals parsed CashTokens by category.
+    summarizeCashTokens: function (tokens) {
+      const categories = new Map();
+      tokens.forEach((token) => {
+        if (!token) {
+          return;
+        }
+        if (!categories.has(token.category)) {
+          categories.set(token.category, {
+            category: token.category,
+            amount: undefined,
+            nfts: 0,
+            capabilities: { immutable: 0, mutable: 0, minting: 0 },
+          });
+        }
+        const summary = categories.get(token.category);
+        if (token.amount !== undefined) {
+          summary.amount = (summary.amount || Big(0)).add(token.amount);
+        }
+        if (token.nft) {
+          summary.nfts++;
+          if (token.nft.capability in summary.capabilities) {
+            summary.capabilities[token.nft.capability]++;
+          }
+        }
+      });
+      return Array.from(categories.values());
     },
     resetState: function () {
       this.result = "";
@@ -511,9 +630,6 @@ export default {
       this.blockData = this.defaultBlockData();
       this.transaction = "";
       this.transactionData = this.defaultTransactionData();
-      this.testnet =
-        this.selectedNetwork.includes("testnet") ||
-        this.selectedNetwork.includes("18335");
     },
     defaultAddressData: function () {
       return {
@@ -525,6 +641,7 @@ export default {
         confirmed_transactions: 0,
         unconfirmed_transactions: 0,
         tokens: [],
+        cashtokens: [],
       };
     },
     defaultBlockData: function () {
@@ -559,14 +676,18 @@ export default {
         slp_action_str: "",
         slp_valid: false,
         slp_parse_error: "",
+        dsproof_score: null,
+        dsproof: null,
       };
     },
-    updateNetwork: function () {
+    updateNetwork: async function () {
       this.resetState();
       this.infoResult = "Not connected (select another server)";
-      this.grpc = null;
+      const node = this.nodes.find((n) => n.url === this.selectedNetwork);
+      this.network = node ? node.network : MAINNET;
       this.grpc = this.newGrpcClient();
-      this.getInfo();
+      // Wait for the node to report its network so routes use it.
+      await this.getInfo();
       const params = this.$route.params;
       const input = params.address || params.blockHash || params.txId;
       if (input != undefined) {
@@ -574,14 +695,18 @@ export default {
       }
     },
     newGrpcClient: function () {
-      return new GrpcClient({
-        url: this.selectedNetwork,
-        testnet: false,
-      });
+      return new BchrpcClient({ url: this.selectedNetwork });
     },
     getInfo: async function () {
+      const client = this.grpc;
       try {
-        var blockInfo = await this.grpc.getBlockchainInfo();
+        var blockInfo = await client.getBlockchainInfo();
+        if (client !== this.grpc) {
+          // The server was changed while this call was in flight.
+          return;
+        }
+        this.network =
+          NETWORK_NAMES[blockInfo.getBitcoinNet()] || this.network;
         var blockHash = this.convertHash(blockInfo.getBestBlockHash());
         var blockHeight = blockInfo.getBestHeight();
         this.infoResult =
