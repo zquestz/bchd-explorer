@@ -12,13 +12,11 @@
   "dependencies": {
     "@improbable-eng/grpc-web": "^0.15.0",
     "bchaddrjs-slp": "^0.2.12",
-    "big.js": "^5.2.2",
-    "core-js": "^3.6.5",
-    "flush-promises": "^1.0.2",
+    "big.js": "^7.0.1",
+    "core-js": "^3.51.0",
     "google-protobuf": "^3.21.4",
-    "jest": "^25.5.4",
     "pretty-bytes": "^5.4.1",
-    "satoshi-bitcoin": "^1.0.4",
+    "satoshi-bitcoin": "^1.0.7",
     "vue": "^2.6.11",
     "vue-router": "^3.4.3"
   },

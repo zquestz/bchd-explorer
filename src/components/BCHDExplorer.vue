@@ -112,7 +112,6 @@ export default {
       result: "",
       infoResult: " ",
       input: "",
-      grpc: null,
       network: MAINNET,
       address: "",
       addressData: this.defaultAddressData(),
@@ -302,7 +301,13 @@ export default {
             } else {
               _tokens.set(tokenID, {
                 token_id: tokenID,
-                token_metadata: tokenMetadata.get(tokenID),
+                // SLPAddress reads token_metadata unconditionally, so fall
+                // back to placeholders when the node returned none.
+                token_metadata: tokenMetadata.get(tokenID) || {
+                  token_id: tokenID,
+                  name: "NA",
+                  ticker: "tokens",
+                },
                 decimals: tok.getDecimals(),
                 balance: Big(tok.getAmount()),
               });
@@ -320,10 +325,10 @@ export default {
       }
     },
     populateBlockData: async function (input) {
-      var blockFinder = "hash";
-      if (input >= 0 && input < 10000000) {
-        blockFinder = "height";
-      }
+      // Only plain decimal input is a height; a loose numeric comparison
+      // would also accept forms such as "1e3" or "0x10".
+      var blockFinder =
+        /^\d+$/.test(input) && Number(input) < 10000000 ? "height" : "hash";
       try {
         var blockResult = "";
         if (blockFinder === "height") {
@@ -779,12 +784,17 @@ export default {
     },
   },
   created: function () {
+    // Set outside data() so Vue doesn't make the client's internals reactive.
+    this.grpc = null;
     if (this.getInfoBar) {
       this.getInfo();
-      setInterval(() => {
+      this.infoInterval = setInterval(() => {
         this.getInfo();
       }, 60000);
     }
+  },
+  beforeDestroy: function () {
+    clearInterval(this.infoInterval);
   },
 };
 </script>
