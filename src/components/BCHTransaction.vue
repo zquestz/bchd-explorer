@@ -84,7 +84,8 @@
         </tr>
         <tr>
           <td>Timestamp</td>
-          <td>{{transactionData['timestamp']}}</td>
+          <!-- bchd gives the block's time, so unconfirmed transactions have none. -->
+          <td>{{transactionData['timestamp'] ? formatTimeAndAge(transactionData['timestamp']) : 'Not yet in a block'}}</td>
         </tr>
         <tr>
           <td>Confirmations</td>
@@ -256,6 +257,7 @@
 
 <script>
 import ResultLink from "./ResultLink.vue";
+import { formatTimeAndAge } from "../format";
 export default {
   name: "bchtransaction",
   props: ["transaction", "transactionData", "network"],
@@ -268,6 +270,7 @@ export default {
     }
   },
   methods: {
+    formatTimeAndAge,
     // outpointLink returns the transaction an input spends, or "" for a
     // coinbase input, whose outpoint hash is all zeros.
     outpointLink: function(item) {

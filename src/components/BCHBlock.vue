@@ -45,7 +45,7 @@
         </tr>
         <tr>
           <td>Timestamp</td>
-          <td>{{blockData['timestamp']}}</td>
+          <td>{{blockData['timestamp'] ? formatTimeAndAge(blockData['timestamp']) : ''}}</td>
         </tr>
         <tr>
           <td>Bits</td>
@@ -73,7 +73,7 @@
         </tr>
         <tr>
           <td>Median Time</td>
-          <td>{{blockData['median_time']}}</td>
+          <td>{{blockData['median_time'] ? formatTime(blockData['median_time']) : ''}}</td>
         </tr>
       </tbody>
     </table>
@@ -97,11 +97,16 @@
 
 <script>
 import ResultLink from "./ResultLink.vue";
+import { formatTime, formatTimeAndAge } from "../format";
 export default {
   name: "bchblock",
   props: ["block", "blockData", "network"],
   components: {
     ResultLink
+  },
+  methods: {
+    formatTime,
+    formatTimeAndAge
   }
 };
 </script>

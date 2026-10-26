@@ -74,6 +74,9 @@
           :network="network"
         />
       </div>
+      <div class="container results" v-if="isHome && recentBlocks.length">
+        <RecentBlocks :blocks="recentBlocks" :network="network" />
+      </div>
     </section>
     <footer class="has-text-centered">
       Copyright &copy; 2020 Coinbase — All rights reserved.
@@ -89,6 +92,7 @@ import bchaddr from "bchaddrjs-slp";
 import BCHAddress from "./BCHAddress.vue";
 import BCHBlock from "./BCHBlock.vue";
 import BCHTransaction from "./BCHTransaction.vue";
+import RecentBlocks from "./RecentBlocks.vue";
 import ResultLink from "./ResultLink.vue";
 import sb from "satoshi-bitcoin";
 import prettyBytes from "pretty-bytes";
@@ -104,6 +108,31 @@ const LEGACY_ROUTE_NETWORKS = { testnet3: TESTNET4 };
 const MAX_ADDRESS_TXS = 10000;
 // Blocks can hold over 100,000 transactions; list only the first ones.
 const MAX_BLOCK_TXS_SHOWN = 1000;
+
+// The home page lists this many of the newest blocks, fetching at most
+// RECENT_BLOCKS_CONCURRENCY at a time: bchd limits each server to 16 calls
+// in progress across all its clients.
+const RECENT_BLOCKS = 10;
+const RECENT_BLOCKS_CONCURRENCY = 3;
+
+// mapLimit runs fn on each item, at most limit at a time, and returns the
+// results in order, with null for any that failed.
+async function mapLimit(items, limit, fn) {
+  const results = new Array(items.length).fill(null);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i]).catch(() => null);
+    }
+  };
+  const workers = [];
+  for (let i = 0; i < Math.min(limit, items.length); i++) {
+    workers.push(worker());
+  }
+  await Promise.all(workers);
+  return results;
+}
 
 // Errors bchd gives when the node runs without an index a lookup needs.
 const MISSING_INDEXES = {
@@ -132,6 +161,7 @@ export default {
     BCHAddress,
     BCHBlock,
     BCHTransaction,
+    RecentBlocks,
     ResultLink,
   },
   data: function () {
@@ -140,6 +170,9 @@ export default {
       infoResult: " ",
       // The node's newest block, shown in the status line.
       tip: { height: null, hash: "" },
+      recentBlocks: [],
+      // The tip height recentBlocks was loaded for.
+      recentBlocksTip: null,
       input: "",
       network: MAINNET,
       nodeIndexes: this.defaultNodeIndexes(),
@@ -176,6 +209,17 @@ export default {
       selectedNetwork: "https://bchd.greyh.at:8335",
     };
   },
+  computed: {
+    // isHome is true on the home page while no result is shown.
+    isHome: function () {
+      return (
+        this.routeInput(this.$route) === undefined &&
+        !this.address &&
+        !this.block &&
+        !this.transaction
+      );
+    },
+  },
   mounted() {
     // Links carry their network, so start on a server for it.
     this.selectNodeForNetwork(this.$route.params.network);
@@ -201,6 +245,7 @@ export default {
         this.currentQuery = undefined;
         this.resetState();
         this.input = "";
+        this.loadRecentBlocks();
         return;
       }
       this.input = input;
@@ -353,6 +398,47 @@ export default {
       this.currentQuery = undefined;
       this.resetState();
       this.input = "";
+      this.loadRecentBlocks();
+    },
+    // loadRecentBlocks fetches the newest blocks for the home page, unless
+    // they were already fetched for the current tip.
+    loadRecentBlocks: async function () {
+      const tipHeight = this.tip.height;
+      if (tipHeight === null || tipHeight === this.recentBlocksTip) {
+        return;
+      }
+      this.recentBlocksTip = tipHeight;
+      const client = this.grpc;
+      const heights = [];
+      for (let h = tipHeight; h >= 0 && h > tipHeight - RECENT_BLOCKS; h--) {
+        heights.push(h);
+      }
+      const blocks = await mapLimit(
+        heights,
+        RECENT_BLOCKS_CONCURRENCY,
+        async (height) => {
+          const block = (await client.getBlock({ index: height })).getBlock();
+          const info = block.getInfo();
+          return {
+            height: info.getHeight(),
+            hash: this.convertHash(info.getHash_asU8()),
+            timestamp: info.getTimestamp(),
+            transaction_count: block.getTransactionDataList().length,
+            size: info.getSize(),
+          };
+        }
+      );
+      if (client !== this.grpc || tipHeight !== this.recentBlocksTip) {
+        // The server changed, or a newer tip started its own load.
+        return;
+      }
+      const loaded = blocks.filter((b) => b !== null);
+      if (!loaded.length) {
+        // Let the next status refresh try again.
+        this.recentBlocksTip = null;
+        return;
+      }
+      this.recentBlocks = Object.freeze(loaded);
     },
 
     populateAddressData: async function (addr, token) {
@@ -909,6 +995,8 @@ export default {
       this.currentQuery = undefined;
       this.infoResult = "Not connected (select another server)";
       this.tip = { height: null, hash: "" };
+      this.recentBlocks = [];
+      this.recentBlocksTip = null;
       const node = this.nodes.find((n) => n.url === this.selectedNetwork);
       this.network = node ? node.network : MAINNET;
       this.nodeIndexes = this.defaultNodeIndexes();
@@ -943,6 +1031,9 @@ export default {
           height: blockInfo.getBestHeight(),
           hash: this.convertHash(blockInfo.getBestBlockHash()),
         };
+        if (this.isHome) {
+          this.loadRecentBlocks();
+        }
       } catch (error) {
         // Don't update, could be transient failures.
       }
