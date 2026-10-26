@@ -36,22 +36,47 @@
 @use "bulma/sass/elements/loader";
 @use "bulma/sass/elements/table";
 @use "bulma/sass/elements/title";
-
 @use "bulma/sass/form/input-textarea";
 @use "bulma/sass/form/tools";
 @use "bulma/sass/layout/container";
 @use "bulma/sass/layout/section";
 @use "bulma/sass/helpers/typography";
-@use "bulma/sass/themes/light";
-@use "bulma/sass/themes/setup";
+// Light and dark: the system setting, unless <html> has data-theme="light"
+// or "dark" (see src/theme.js).
+@use "bulma/sass/themes";
 
-:root {
-  @include light.light-theme;
-  @include setup.setup-theme;
+// The explorer's own colors for each theme, switched the same way.
+@mixin explorer-light {
+  color-scheme: light;
+  --explorer-logo-text: #474652;
+  --explorer-disabled: #b5b5b5;
 }
 
-// Bulma 1 tints the text of colored inputs (is-primary) with their color;
-// keep it the normal text color.
+@mixin explorer-dark {
+  color-scheme: dark;
+  --explorer-logo-text: var(--bulma-text-strong);
+  --explorer-disabled: hsl(221, 14%, 35%);
+}
+
+:root {
+  @include explorer-light;
+}
+
+@include cv.system-theme($name: "dark") {
+  @include explorer-dark;
+}
+
+@include cv.bulma-theme($name: "light") {
+  @include explorer-light;
+}
+
+@include cv.bulma-theme($name: "dark") {
+  @include explorer-dark;
+}
+
+// Bulma 1 tints the text and, in dark mode, the background of colored
+// inputs (is-primary) with their color; only the border should be.
 .input {
   color: var(--bulma-text-strong);
+  background-color: var(--bulma-scheme-main);
 }

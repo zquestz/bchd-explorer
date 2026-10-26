@@ -31,11 +31,11 @@
           <td>SLP Error Type</td>
           <td>{{transactionData['slp_action_str']}}</td>
         </tr>
-        <tr v-if="transactionData['slp_action'] === 2" style="color:red;">
+        <tr v-if="transactionData['slp_action'] === 2" class="danger">
           <td>SLP Parser Error</td>
           <td>{{transactionData['slp_parse_error']}}</td>
         </tr>
-        <tr v-else-if="transactionData['slp_action'] > 2 && !transactionData['slp_valid']"  style="color:red;">
+        <tr v-else-if="transactionData['slp_action'] > 2 && !transactionData['slp_valid']" class="danger">
           <td>SLP Error</td>
           <td>Insufficient inputs</td>
         </tr>
@@ -47,15 +47,15 @@
           <td>SLP Token ID</td>
           <td><ResultLink type="tx" :value="transactionData['token_metadata'].token_id" :network="network" /></td>
         </tr>
-        <tr v-if="transactionData['burn_flags']" style="color:red;">
+        <tr v-if="transactionData['burn_flags']" class="danger">
           <td>SLP Burns</td>
           <td>{{transactionData['burn_flags']}}</td>
         </tr>
-        <tr v-if="transactionData['burn_amt_this_token']" style="color:red;">
+        <tr v-if="transactionData['burn_amt_this_token']" class="danger">
           <td>SLP Inputs Burned (this token)</td>
           <td>{{`${transactionData['burn_amt_this_token']} ${transactionData.token_metadata.ticker}`}}</td>
         </tr>
-        <tr v-if="transactionData['burns_from_other_tokens']" style="color:red;">
+        <tr v-if="transactionData['burns_from_other_tokens']" class="danger">
           <td>SLP Inputs Burned (misc. tokens)</td>
           <td>See inputs below</td>
         </tr>
@@ -101,15 +101,15 @@
           <td>None</td>
         </tr>
         <template v-if="transactionData['dsproof']">
-          <tr style="color:red;">
+          <tr class="danger">
             <td>Double Spend Proof</td>
             <td>{{transactionData['dsproof'].hash}}</td>
           </tr>
-          <tr style="color:red;">
+          <tr class="danger">
             <td>Double Spent Output</td>
             <td><ResultLink type="tx" :value="transactionData['dsproof'].outpoint_hash" :network="network" />:{{transactionData['dsproof'].outpoint_index}}</td>
           </tr>
-          <tr v-if="transactionData['dsproof'].ancestor" style="color:red;">
+          <tr v-if="transactionData['dsproof'].ancestor" class="danger">
             <td>Double Spent Ancestor</td>
             <td><ResultLink type="tx" :value="transactionData['dsproof'].ancestor" :network="network" /></td>
           </tr>
@@ -159,11 +159,11 @@
         <tr v-if="item.token">
           <td>SLP Token</td>
           <td v-if="!item.token.isBurned">{{item.token.isMintBaton ? "MINT BATON": item.token.amount}} {{item.token.isMintBaton ? "" : item.token.ticker}}</td>
-          <td v-else style="color:red;">{{item.token.isMintBaton ? "MINT BATON": item.token.amount}} {{item.token.ticker}} BURNED</td>
+          <td v-else class="danger">{{item.token.isMintBaton ? "MINT BATON": item.token.amount}} {{item.token.ticker}} BURNED</td>
         </tr>
         <tr v-if="item.token && item.token.isBurned">
           <td>SLP Token ID Burned</td>
-          <td style="color:red;"><ResultLink type="tx" :value="item.token.token_id" :network="network" /></td>
+          <td class="danger"><ResultLink type="tx" :value="item.token.token_id" :network="network" /></td>
         </tr>
         <tr>
           <td>Outpoint Hash</td>
@@ -310,3 +310,12 @@ export default {
   }
 };
 </script>
+
+<style scoped>
+/* Burns, invalid SLP and double spends. Bulma colors table cells itself,
+   so a row's color has to be set on its cells. */
+.danger,
+.danger td {
+  color: var(--bulma-danger-on-scheme);
+}
+</style>

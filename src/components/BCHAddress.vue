@@ -216,10 +216,10 @@ export default {
 }
 
 .positive {
-  color: #257942;
+  color: var(--bulma-success-on-scheme);
 }
 
 .negative {
-  color: #cc0f35;
+  color: var(--bulma-danger-on-scheme);
 }
 </style>

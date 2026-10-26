@@ -22,6 +22,7 @@
       :aria-busy="searching || connecting || mempoolLoading ? 'true' : 'false'"
     >
       <div class="container has-text-right">
+        <ThemeToggle />
         <select v-model="selectedNetwork" @change="updateNetwork">
           <option v-for="node in nodes" :value="node.url" :key="node.url">
             {{ node.name }} ({{ node.network }})
@@ -31,7 +32,7 @@
       <br />
       <div class="container">
         <router-link to="/" class="logo-link" @click="goHome">
-          <img class="logo" src="../assets/bchd-explorer.svg" alt="BCHD Explorer" />
+          <Logo />
         </router-link>
         <div class="field">
           <div
@@ -169,9 +170,11 @@ import { toHex, toUtf8 } from "../hex";
 import BCHAddress from "./BCHAddress.vue";
 import BCHBlock from "./BCHBlock.vue";
 import BCHTransaction from "./BCHTransaction.vue";
+import Logo from "./Logo.vue";
 import Mempool from "./Mempool.vue";
 import RecentBlocks from "./RecentBlocks.vue";
 import ResultLink from "./ResultLink.vue";
+import ThemeToggle from "./ThemeToggle.vue";
 import sb from "satoshi-bitcoin";
 import prettyBytes from "pretty-bytes";
 
@@ -253,9 +256,11 @@ export default {
     BCHAddress,
     BCHBlock,
     BCHTransaction,
+    Logo,
     Mempool,
     RecentBlocks,
     ResultLink,
+    ThemeToggle,
   },
   data: function () {
     return {

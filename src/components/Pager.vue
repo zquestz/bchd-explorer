@@ -38,6 +38,6 @@ export default {
 }
 
 .disabled {
-  color: #b5b5b5;
+  color: var(--explorer-disabled);
 }
 </style>
