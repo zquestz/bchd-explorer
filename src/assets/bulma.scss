@@ -17,10 +17,26 @@
 // Only the parts of Bulma the explorer uses: about a sixth of the full
 // stylesheet. Add a module here before using its classes.
 
-// The explorer's colors: primary is the logo's green, as in the Bulma 0.8
-// build it used before.
+// The explorer's colors come from the logo: primary and success are its
+// green, and the greys (text, borders, backgrounds) take the hue of its
+// lettering, #474652, instead of Bulma's blue-grey.
 @use "bulma/sass/utilities" with (
-  $primary: #24e6aa
+  $primary: #24e6aa,
+  $success: hsl(161, 72%, 45%),
+  $scheme-h: 245,
+  $scheme-s: 9%,
+  $black: hsl(245, 9%, 4%),
+  $black-bis: hsl(245, 9%, 9%),
+  $black-ter: hsl(245, 9%, 14%),
+  $grey-darker: hsl(245, 9%, 21%),
+  $grey-dark: hsl(245, 9%, 29%),
+  $grey: hsl(245, 9%, 48%),
+  $grey-light: hsl(245, 9%, 71%),
+  $grey-lighter: hsl(245, 9%, 86%),
+  $grey-lightest: hsl(245, 9%, 93%),
+  $white-ter: hsl(245, 9%, 96%),
+  $white-bis: hsl(245, 9%, 98%),
+  $white: hsl(245, 9%, 100%)
 );
 @use "bulma/sass/utilities/css-variables" as cv;
 // Search icon: light grey, darker while the search box has focus.
@@ -49,13 +65,22 @@
 @mixin explorer-light {
   color-scheme: light;
   --explorer-logo-text: #474652;
-  --explorer-disabled: #b5b5b5;
+  --explorer-disabled: hsl(245, 9%, 71%);
+  --explorer-link: hsl(245, 9%, 45%);
+  // Keyboard focus rings: the text grey, not Bulma's link blue.
+  --bulma-focus-h: 245;
+  --bulma-focus-s: 9%;
+  --bulma-focus-l: 29%;
 }
 
 @mixin explorer-dark {
   color-scheme: dark;
   --explorer-logo-text: var(--bulma-text-strong);
-  --explorer-disabled: hsl(221, 14%, 35%);
+  --explorer-disabled: hsl(245, 9%, 35%);
+  --explorer-link: hsl(245, 9%, 64%);
+  --bulma-focus-h: 245;
+  --bulma-focus-s: 9%;
+  --bulma-focus-l: 71%;
 }
 
 :root {
@@ -73,6 +98,24 @@
 @include cv.bulma-theme($name: "dark") {
   @include explorer-dark;
 }
+
+// Links differ from text by tone, not color: a step lighter than the dark
+// text in light mode, a step darker than the light text in dark mode, with
+// a faint underline. Hovering underlines them in the logo green.
+a {
+  color: var(--explorer-link);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+a:hover {
+  color: var(--bulma-text-strong);
+  text-decoration-color: var(--bulma-primary);
+  text-decoration-thickness: 2px;
+}
+
 
 // Bulma 1 tints the text and, in dark mode, the background of colored
 // inputs (is-primary) with their color; only the border should be.
