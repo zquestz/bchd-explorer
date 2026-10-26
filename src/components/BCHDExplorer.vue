@@ -214,6 +214,20 @@ export default {
     };
   },
   computed: {
+    // pageTitle names the result shown, so browser tabs and the history menu
+    // tell pages apart.
+    pageTitle: function () {
+      const short = (value) => `${value.slice(0, 10)}\u2026`;
+      let subject = "";
+      if (this.address) {
+        subject = `Address ${short(this.address.split(":").pop())}`;
+      } else if (this.block) {
+        subject = `Block ${this.blockData.height}`;
+      } else if (this.transaction) {
+        subject = `Transaction ${short(this.transaction)}`;
+      }
+      return subject ? `${subject} \u00b7 BCHD Explorer` : "BCHD Explorer";
+    },
     // isHome is true on the home page while no result is shown.
     isHome: function () {
       return (
@@ -230,6 +244,12 @@ export default {
     this.updateNetwork();
   },
   watch: {
+    pageTitle: {
+      immediate: true,
+      handler: function (title) {
+        document.title = title;
+      },
+    },
     // Back, forward and edited URLs change the route without a search, as
     // every route reuses this component.
     $route(to) {
@@ -293,6 +313,8 @@ export default {
       this.searchBCHD(this.input);
     },
     searchBCHD: async function (input) {
+      // Pasted values often carry spaces or a newline.
+      input = typeof input === "string" ? input.trim() : input;
       this.resetState();
       const token = ++this.searchToken;
 
