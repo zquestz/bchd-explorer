@@ -87,10 +87,10 @@
         <h2>Transactions</h2>
         <p v-if="mempool.full" class="sort">
           Sort by:
-          <template v-for="(option, i) in sortOptions">
-            <span :key="option.key + '-sep'" v-if="i > 0"> &middot; </span>
-            <strong :key="option.key" v-if="option.key === sort">{{option.label}}</strong>
-            <a :key="option.key" v-else href="#" @click.prevent="setSort(option.key)">{{option.label}}</a>
+          <template v-for="(option, i) in sortOptions" :key="option.key">
+            <span v-if="i > 0"> &middot; </span>
+            <strong v-if="option.key === sort">{{option.label}}</strong>
+            <a v-else href="#" @click.prevent="setSort(option.key)">{{option.label}}</a>
           </template>
         </p>
         <p v-else>
@@ -143,6 +143,7 @@ export default {
   // fetches summaries for txids when the mempool was too large to fetch
   // whole.
   props: ["mempool", "loading", "error", "network", "loadDetails"],
+  emits: ["refresh"],
   components: {
     Pager,
     ResultLink
@@ -217,12 +218,16 @@ export default {
       if (!missing.length) {
         return;
       }
-      missing.forEach((txid) => this.$set(this.details, txid, "loading"));
+      missing.forEach((txid) => {
+        this.details[txid] = "loading";
+      });
       const results = await this.loadDetails(missing);
       if (snapshot !== this.mempool) {
         return;
       }
-      missing.forEach((txid, i) => this.$set(this.details, txid, results[i]));
+      missing.forEach((txid, i) => {
+        this.details[txid] = results[i];
+      });
     },
     shortHash: function(hash) {
       return `${hash.slice(0, 10)}\u2026${hash.slice(-10)}`;

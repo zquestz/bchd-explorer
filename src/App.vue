@@ -15,9 +15,7 @@
 -->
 
 <template>
-  <div id="app">
-    <BCHDExplorer />
-  </div>
+  <BCHDExplorer />
 </template>
 
 <script>

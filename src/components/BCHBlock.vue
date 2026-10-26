@@ -24,7 +24,7 @@
     </nav>
     <table class="table is-bordered is-striped" align="center">
       <thead>
-        <th colspan="2">{{block}}</th>
+        <tr><th colspan="2">{{block}}</th></tr>
       </thead>
       <tbody>
         <tr>

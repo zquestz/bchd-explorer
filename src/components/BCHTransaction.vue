@@ -15,7 +15,7 @@
   <div id="bchtransaction">
     <table class="table is-bordered is-striped" align="center">
       <thead>
-        <th colspan="2">{{transaction}}</th>
+        <tr><th colspan="2">{{transaction}}</th></tr>
       </thead>
       <tbody>
         <tr v-if="transactionData['slp_action'] > 0">

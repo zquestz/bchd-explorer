@@ -14,26 +14,23 @@
  * limitations under the License.
  */
 
-import Vue from "vue";
+import { createApp } from "vue";
+import { createRouter, createWebHistory } from "vue-router";
 import App from "./App.vue";
-import VueRouter from "vue-router";
 import BCHDExplorer from "./components/BCHDExplorer.vue";
 
-Vue.config.productionTip = false;
-
-Vue.use(VueRouter)
-const router = new VueRouter({
-  mode: "history",
+const router = createRouter({
+  history: createWebHistory(),
   routes: [
     { name: "home", path: "/", component: BCHDExplorer },
     { name: "address", path: "/:network/address/:address", component: BCHDExplorer },
     { name: "block", path: "/:network/block/:blockHash", component: BCHDExplorer },
     { name: "tx", path: "/:network/tx/:txId", component: BCHDExplorer },
     { name: "mempool", path: "/:network/mempool", component: BCHDExplorer },
-  ]
-})
+  ],
+});
 
-new Vue({
-  router,
-  render: h => h(App),
-}).$mount("#app");
+const app = createApp(App);
+app.use(router);
+// The explorer reads the route when it mounts, so wait for the first one.
+router.isReady().then(() => app.mount("#app"));

@@ -25,7 +25,8 @@
 <script>
 export default {
   name: "pager",
-  props: ["page", "pages"]
+  props: ["page", "pages"],
+  emits: ["change"]
 };
 </script>
 

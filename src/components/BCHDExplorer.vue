@@ -29,7 +29,7 @@
       </div>
       <br />
       <div class="container">
-        <router-link to="/" class="logo-link" @click.native="goHome">
+        <router-link to="/" class="logo-link" @click="goHome">
           <img class="logo" src="../assets/bchd-explorer.svg" alt="BCHD Explorer" />
         </router-link>
         <div class="field">
@@ -1502,7 +1502,7 @@ export default {
       }, 60000);
     }
   },
-  beforeDestroy: function () {
+  beforeUnmount: function () {
     clearInterval(this.infoInterval);
     clearTimeout(this.searchingTimer);
   },

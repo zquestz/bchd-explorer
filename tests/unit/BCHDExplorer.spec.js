@@ -15,8 +15,8 @@
  */
 
 import BCHDExplorer from "@/components/BCHDExplorer.vue";
-import { mount, createLocalVue } from "@vue/test-utils";
-import VueRouter from "vue-router";
+import { mount } from "@vue/test-utils";
+import { createMemoryHistory, createRouter } from "vue-router";
 import {
   addressTransactions,
   block,
@@ -34,12 +34,15 @@ import {
 
 const Code = { Unknown: 2, NotFound: 5, ResourceExhausted: 8, Aborted: 10, Unimplemented: 12, Unavailable: 14 };
 
+// The app renders the explorer itself, so the routes only need some
+// component.
+const Empty = { render: () => null };
 const ROUTES = [
-  { name: "home", path: "/" },
-  { name: "address", path: "/:network/address/:address" },
-  { name: "block", path: "/:network/block/:blockHash" },
-  { name: "tx", path: "/:network/tx/:txId" },
-  { name: "mempool", path: "/:network/mempool" },
+  { name: "home", path: "/", component: Empty },
+  { name: "address", path: "/:network/address/:address", component: Empty },
+  { name: "block", path: "/:network/block/:blockHash", component: Empty },
+  { name: "tx", path: "/:network/tx/:txId", component: Empty },
+  { name: "mempool", path: "/:network/mempool", component: Empty },
 ];
 
 const ADDRESS = "qqm3qwahv44xz4vyrv9nh46xwsha6eqzdgv2taxj2j";
@@ -48,11 +51,11 @@ const P2SH32_TOKEN_AWARE = "bitcoincash:rv5q5j55gfdxjap3ddw2egda7shc50ffjhlv4v7k
 const TXID = hexHash(0xabc);
 const CATEGORY = hexHash(0xca7);
 
-function mountExplorer({ client = fakeClient(), path = "/" } = {}) {
-  const localVue = createLocalVue();
-  localVue.use(VueRouter);
-  const router = new VueRouter({ mode: "abstract", routes: ROUTES });
+async function mountExplorer({ client = fakeClient(), path = "/" } = {}) {
+  const router = createRouter({ history: createMemoryHistory(), routes: ROUTES });
   router.push(path);
+  // As in main.js, the explorer mounts once the first route is resolved.
+  await router.isReady();
   // The explorer gets the fake node through a copy of the component whose
   // newGrpcClient returns it.
   const component = {
@@ -60,8 +63,7 @@ function mountExplorer({ client = fakeClient(), path = "/" } = {}) {
     methods: { ...BCHDExplorer.methods, newGrpcClient: () => client },
   };
   const wrapper = mount(component, {
-    localVue,
-    router,
+    global: { plugins: [router] },
     data() {
       return { getInfoBar: false };
     },
@@ -81,8 +83,8 @@ async function settle(rounds = 10) {
 function cell(wrapper, label) {
   const rows = wrapper
     .findAll("tr")
-    .filter((r) => r.findAll("td").length === 2 && r.findAll("td").at(0).text() === label);
-  return rows.length ? rows.at(0).findAll("td").at(1) : null;
+    .filter((r) => r.findAll("td").length === 2 && r.findAll("td")[0].text() === label);
+  return rows.length ? rows[0].findAll("td")[1] : null;
 }
 
 function confirmedTx(overrides = {}) {
@@ -107,7 +109,7 @@ function confirmedTx(overrides = {}) {
 
 describe("BCHDExplorer.vue searching", () => {
   it("reports when nothing is found", async () => {
-    const { wrapper } = mountExplorer();
+    const { wrapper } = await mountExplorer();
     await settle();
     await wrapper.vm.searchBCHD("bad");
     expect(wrapper.vm.result).toBe("No address, transaction or block hash/height found.");
@@ -117,11 +119,11 @@ describe("BCHDExplorer.vue searching", () => {
     const client = fakeClient({
       getBlock: (q) => block({ height: q.index, next: hexHash(q.index + 1), txids: [hexHash(1), hexHash(2)] }),
     });
-    const { wrapper, router } = mountExplorer({ client });
+    const { wrapper, router } = await mountExplorer({ client });
     await settle();
     await wrapper.vm.searchBCHD("  632707\n");
     await settle();
-    expect(router.currentRoute.path).toBe("/mainnet/block/632707");
+    expect(router.currentRoute.value.path).toBe("/mainnet/block/632707");
     expect(wrapper.vm.blockData.height).toBe(632707);
     expect(wrapper.vm.blockData.transaction_count).toBe(2);
     expect(wrapper.findAll("#bchablock a").filter((a) => a.attributes("href") === `/mainnet/tx/${hexHash(2)}`).length).toBe(1);
@@ -133,22 +135,22 @@ describe("BCHDExplorer.vue searching", () => {
     const client = fakeClient({
       getBlock: (q) => block({ height: q.index, next: hexHash(q.index + 1), txids: txids(q.index, q.index === 7 ? 1234 : 60) }),
     });
-    const { wrapper } = mountExplorer({ client });
+    const { wrapper } = await mountExplorer({ client });
     await settle();
     await wrapper.vm.searchBCHD("7");
     await settle();
     const section = () => wrapper.find(".block-transactions");
-    const indexes = () => section().findAll("tbody tr").wrappers.map((r) => r.findAll("td").at(0).text());
+    const indexes = () => section().findAll("tbody tr").map((r) => r.findAll("td")[0].text());
     // No cap: every transaction is reachable.
     expect(section().find("h2").text()).toBe("1234 Transactions");
     expect(section().find(".pager").text()).toContain("Page 1 of 25");
-    expect(section().findAll("th").wrappers.map((th) => th.text())).toEqual(["Index", "Transaction"]);
+    expect(section().findAll("th").map((th) => th.text())).toEqual(["Index", "Transaction"]);
     expect(indexes()[0]).toBe("0 (coinbase)");
     expect(indexes()[49]).toBe("49");
 
     // Each click needs a render, as the pager asks for its current page + 1.
     const next = async () => {
-      section().findAll(".pager a").filter((a) => a.text().includes("Next")).at(0).trigger("click");
+      section().findAll(".pager a").filter((a) => a.text().includes("Next"))[0].trigger("click");
       await settle(1);
     };
     await next();
@@ -173,7 +175,7 @@ describe("BCHDExplorer.vue searching", () => {
 
   it("shows a transaction with its fee, script and CashTokens", async () => {
     const client = fakeClient({ getTransaction: () => transactionResponse(confirmedTx()) });
-    const { wrapper } = mountExplorer({ client });
+    const { wrapper } = await mountExplorer({ client });
     await settle();
     await wrapper.vm.searchBCHD(TXID);
     await settle();
@@ -187,8 +189,8 @@ describe("BCHDExplorer.vue searching", () => {
     expect(document.title).toBe(`Transaction ${TXID.slice(0, 10)}\u2026 \u00b7 BCHD Explorer`);
   });
 
-  it("parses NFT capabilities and totals CashTokens by category", () => {
-    const { wrapper } = mountExplorer();
+  it("parses NFT capabilities and totals CashTokens by category", async () => {
+    const { wrapper } = await mountExplorer();
     const parse = (bitfield, amount, commitment) => wrapper.vm.parseCashToken({
       getBitfield_asU8: () => Uint8Array.from([bitfield]),
       getCategoryId_asU8: () => Uint8Array.from(Buffer.from(CATEGORY, "hex").reverse()),
@@ -211,7 +213,7 @@ describe("BCHDExplorer.vue searching", () => {
       outputs: [{ value: 625000000, address: ADDRESS }],
     });
     const client = fakeClient({ getTransaction: () => transactionResponse(coinbase) });
-    const { wrapper } = mountExplorer({ client });
+    const { wrapper } = await mountExplorer({ client });
     await settle();
     await wrapper.vm.searchBCHD(TXID);
     await settle();
@@ -224,7 +226,7 @@ describe("BCHDExplorer.vue searching", () => {
   it("shows double spend proof results for unconfirmed transactions", async () => {
     const unconfirmed = confirmedTx({ confirmations: 0 });
     const client = fakeClient({ getTransaction: () => transactionResponse(unconfirmed) });
-    const { wrapper } = mountExplorer({ client });
+    const { wrapper } = await mountExplorer({ client });
     await settle();
     await wrapper.vm.searchBCHD(TXID);
     await settle();
@@ -234,14 +236,14 @@ describe("BCHDExplorer.vue searching", () => {
 
   it("looks up token-aware addresses by their standard form", async () => {
     const client = fakeClient();
-    const { wrapper, router } = mountExplorer({ client });
+    const { wrapper, router } = await mountExplorer({ client });
     await settle();
     await wrapper.vm.searchBCHD(P2SH32_TOKEN_AWARE);
     await settle();
     const queried = client.calls.filter((c) => c.method === "getAddressUtxos").map((c) => c.query.address);
     expect(queried).toEqual([P2SH32]);
     expect(wrapper.vm.addressData.token_aware).toBe(P2SH32_TOKEN_AWARE);
-    expect(router.currentRoute.params.address).toBe(P2SH32_TOKEN_AWARE);
+    expect(router.currentRoute.value.params.address).toBe(P2SH32_TOKEN_AWARE);
   });
 
   it("lists an address's transactions and unspent outputs", async () => {
@@ -267,7 +269,7 @@ describe("BCHDExplorer.vue searching", () => {
         { txid: hexHash(4), vout: 0, value: 700, height: 0x7fffffff, cashToken: { category: CATEGORY, bitfield: 0x22 } },
       ]),
     });
-    const { wrapper } = mountExplorer({ client });
+    const { wrapper } = await mountExplorer({ client });
     await settle();
     await wrapper.vm.searchBCHD("bitcoincash:" + ADDRESS);
     await settle();
@@ -293,7 +295,7 @@ describe("BCHDExplorer.vue searching", () => {
       many.push(transaction({ txid: hexHash(0x100000 + i), height: 50000 - i, confirmations: 1 + i, timestamp: 1700000000 }));
     }
     const client = fakeClient({ getAddressTransactions: () => addressTransactions({ confirmed: many }) });
-    const { wrapper } = mountExplorer({ client });
+    const { wrapper } = await mountExplorer({ client });
     await settle();
     await wrapper.vm.searchBCHD("bitcoincash:" + ADDRESS);
     await settle();
@@ -318,7 +320,7 @@ describe("BCHDExplorer.vue node errors", () => {
         return unspentOutputs([]);
       },
     });
-    const { wrapper } = mountExplorer({ client });
+    const { wrapper } = await mountExplorer({ client });
     await settle();
     await wrapper.vm.searchBCHD("bitcoincash:" + ADDRESS);
     expect(attempts).toBe(2);
@@ -337,7 +339,7 @@ describe("BCHDExplorer.vue node errors", () => {
         "Couldn't reach the node: Response closed without headers"],
     ];
     for (const [handlers, input, message] of cases) {
-      const { wrapper } = mountExplorer({ client: fakeClient(handlers) });
+      const { wrapper } = await mountExplorer({ client: fakeClient(handlers) });
       await settle();
       await wrapper.vm.searchBCHD(input);
       expect(wrapper.vm.result).toBe(message);
@@ -349,7 +351,7 @@ describe("BCHDExplorer.vue node errors", () => {
       getBlockchainInfo: () => blockchainInfo({ slpIndex: false }),
       getTransaction: () => transactionResponse(confirmedTx()),
     });
-    const { wrapper } = mountExplorer({ client });
+    const { wrapper } = await mountExplorer({ client });
     await settle();
     await wrapper.vm.searchBCHD(TXID);
     await wrapper.vm.searchBCHD("bitcoincash:" + ADDRESS);
@@ -373,24 +375,24 @@ describe("BCHDExplorer.vue navigation", () => {
   }
 
   it("links previous and next blocks, except past either end", async () => {
-    const { wrapper } = mountExplorer({ client: blockClient(), path: "/mainnet/block/500" });
+    const { wrapper } = await mountExplorer({ client: blockClient(), path: "/mainnet/block/500" });
     await settle();
     const nav = () => wrapper.find(".block-nav");
-    expect(nav().findAll("a").wrappers.map((a) => a.attributes("href"))).toEqual(["/mainnet/block/499", "/mainnet/block/501"]);
+    expect(nav().findAll("a").map((a) => a.attributes("href"))).toEqual(["/mainnet/block/499", "/mainnet/block/501"]);
 
     await wrapper.vm.searchBCHD("0");
     await settle();
-    expect(nav().findAll("a").wrappers.map((a) => a.text())).toEqual(["Next \u2192"]);
+    expect(nav().findAll("a").map((a) => a.text())).toEqual(["Next \u2192"]);
 
     await wrapper.vm.searchBCHD("1000");
     await settle();
-    expect(nav().findAll("a").wrappers.map((a) => a.text())).toEqual(["\u2190 Previous"]);
+    expect(nav().findAll("a").map((a) => a.text())).toEqual(["\u2190 Previous"]);
   });
 
   it("links the status line to the newest block", async () => {
-    const { wrapper } = mountExplorer({ client: blockClient() });
+    const { wrapper } = await mountExplorer({ client: blockClient() });
     await settle();
-    const hrefs = wrapper.find(".info-result").findAll("a").wrappers.map((a) => a.attributes("href"));
+    const hrefs = wrapper.find(".info-result").findAll("a").map((a) => a.attributes("href"));
     expect(hrefs).toEqual(["/mainnet/block/1000", `/mainnet/block/${hexHash(1000)}`]);
   });
 
@@ -400,7 +402,7 @@ describe("BCHDExplorer.vue navigation", () => {
       client.calls.push({ method: "getTransaction", query: q });
       return Promise.resolve(transactionResponse(confirmedTx()));
     };
-    const { wrapper, router } = mountExplorer({ client });
+    const { wrapper, router } = await mountExplorer({ client });
     // Let the home page's recent blocks finish loading first.
     await settle(40);
     const before = client.count("getBlock");
@@ -424,20 +426,20 @@ describe("BCHDExplorer.vue navigation", () => {
 
     router.go(-2);
     await settle();
-    expect(router.currentRoute.path).toBe("/");
+    expect(router.currentRoute.value.path).toBe("/");
     expect(wrapper.vm.transaction).toBe("");
     expect(wrapper.vm.input).toBe("");
   });
 
   it("goes home from the logo", async () => {
-    const { wrapper, router } = mountExplorer({ client: blockClient(), path: "/mainnet/block/500" });
+    const { wrapper, router } = await mountExplorer({ client: blockClient(), path: "/mainnet/block/500" });
     await settle();
     // A cancellable click, as browsers send; vue-router cancels its default.
     wrapper.find(".logo-link").element.dispatchEvent(
       new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 })
     );
     await settle();
-    expect(router.currentRoute.path).toBe("/");
+    expect(router.currentRoute.value.path).toBe("/");
     expect(wrapper.vm.block).toBe("");
     expect(document.title).toBe("BCHD Explorer");
   });
@@ -445,7 +447,7 @@ describe("BCHDExplorer.vue navigation", () => {
   it("opens links on a server for their network", async () => {
     const testnet = fakeClient({ getBlockchainInfo: () => blockchainInfo({ net: 4 }) });
     for (const path of ["/testnet4/block/1", "/testnet3/block/1"]) {
-      const { wrapper } = mountExplorer({ client: testnet, path });
+      const { wrapper } = await mountExplorer({ client: testnet, path });
       await settle();
       expect(wrapper.vm.selectedNetwork).toBe("https://bchd-testnet.greyh.at:18335");
       expect(wrapper.vm.network).toBe("testnet4");
@@ -462,7 +464,7 @@ describe("BCHDExplorer.vue navigation", () => {
       }
       return fast(q);
     };
-    const { wrapper, router } = mountExplorer({ client });
+    const { wrapper, router } = await mountExplorer({ client });
     await settle();
     await wrapper.vm.searchBCHD("500");
     await settle();
@@ -473,7 +475,7 @@ describe("BCHDExplorer.vue navigation", () => {
     release();
     await slow;
     await settle();
-    expect(router.currentRoute.path).toBe("/mainnet/block/600");
+    expect(router.currentRoute.value.path).toBe("/mainnet/block/600");
     expect(wrapper.vm.blockData.height).toBe(600);
   });
 });
@@ -509,23 +511,23 @@ function mempoolTx(n, { size = 250, value = 1000, fee = 250, cashToken, slp } = 
 function mempoolRows(wrapper) {
   return wrapper
     .findAll(".mempool-list tbody tr")
-    .wrappers.map((r) => r.findAll("td").wrappers.map((c) => c.text()));
+    .map((r) => r.findAll("td").map((c) => c.text()));
 }
 
 // mempoolCells returns the home page mempool table's header and row texts.
 function mempoolCells(wrapper) {
-  return wrapper.findAll("#mempoolstats tr").wrappers.map((r) => r.findAll("th, td").wrappers.map((c) => c.text()));
+  return wrapper.findAll("#mempoolstats tr").map((r) => r.findAll("th, td").map((c) => c.text()));
 }
 
 function statusTexts(wrapper) {
-  return wrapper.findAll("[role=status]").wrappers.map((s) => s.text());
+  return wrapper.findAll("[role=status]").map((s) => s.text());
 }
 
 describe("BCHDExplorer.vue loading indicators", () => {
   it("shows a spinner at once and the searching text after a delay", async () => {
     const slow = deferred();
     const client = fakeClient({ getBlock: (q) => (q.index === 777 ? slow.promise : block({ height: q.index })) });
-    const { wrapper } = mountExplorer({ client, path: "/mainnet/block/5" });
+    const { wrapper } = await mountExplorer({ client, path: "/mainnet/block/5" });
     await settle();
     const search = wrapper.vm.searchBCHD("777");
     await settle(2);
@@ -543,7 +545,7 @@ describe("BCHDExplorer.vue loading indicators", () => {
 
   it("never shows the searching text for a fast lookup", async () => {
     const client = fakeClient({ getBlock: (q) => block({ height: q.index }) });
-    const { wrapper } = mountExplorer({ client, path: "/mainnet/block/5" });
+    const { wrapper } = await mountExplorer({ client, path: "/mainnet/block/5" });
     await settle();
     await wrapper.vm.searchBCHD("6");
     await sleep(350);
@@ -557,7 +559,7 @@ describe("BCHDExplorer.vue loading indicators", () => {
       getBlockchainInfo: () => blockchainInfo({ height: 5 }),
       getBlock: (q) => (q.index === 777 ? slow.promise : block({ height: q.index })),
     });
-    const { wrapper } = mountExplorer({ client, path: "/mainnet/block/5" });
+    const { wrapper } = await mountExplorer({ client, path: "/mainnet/block/5" });
     await settle();
     const search = wrapper.vm.searchBCHD("777");
     await settle(2);
@@ -574,7 +576,7 @@ describe("BCHDExplorer.vue loading indicators", () => {
 
   it("says it is connecting until the node answers", async () => {
     const info = deferred();
-    const { wrapper } = mountExplorer({ client: fakeClient({ getBlockchainInfo: () => info.promise }) });
+    const { wrapper } = await mountExplorer({ client: fakeClient({ getBlockchainInfo: () => info.promise }) });
     await settle(2);
     expect(wrapper.find(".info-result").text()).toBe("Connecting to bchd.greyh.at\u2026");
     expect(wrapper.find(".control").classes()).toContain("is-loading");
@@ -586,7 +588,7 @@ describe("BCHDExplorer.vue loading indicators", () => {
 
   it("says when it couldn't connect", async () => {
     const client = fakeClient({ getBlockchainInfo: () => { throw grpcError(Code.Unknown, "Response closed without headers"); } });
-    const { wrapper } = mountExplorer({ client });
+    const { wrapper } = await mountExplorer({ client });
     await settle();
     expect(wrapper.find(".info-result").text()).toBe("Not connected (select another server)");
     expect(wrapper.vm.connecting).toBe(false);
@@ -602,7 +604,7 @@ describe("BCHDExplorer.vue loading indicators", () => {
         return d.promise;
       },
     });
-    const { wrapper } = mountExplorer({ client });
+    const { wrapper } = await mountExplorer({ client });
     await settle();
     expect(statusTexts(wrapper)).toEqual(["Loading recent blocks\u2026"]);
     while (pending.length) {
@@ -631,13 +633,13 @@ describe("BCHDExplorer.vue mempool page", () => {
 
   it("opens from the home page and summarizes the mempool", async () => {
     const client = smallMempoolClient();
-    const { wrapper, router } = mountExplorer({ client });
+    const { wrapper, router } = await mountExplorer({ client });
     await settle();
     const link = wrapper.find(".mempool-link");
     expect(link.attributes("href")).toBe("/mainnet/mempool");
     link.element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }));
     await settle();
-    expect(router.currentRoute.path).toBe("/mainnet/mempool");
+    expect(router.currentRoute.value.path).toBe("/mainnet/mempool");
     expect(document.title).toBe("Mempool \u00b7 BCHD Explorer");
     expect(wrapper.find("#recentblocks").exists()).toBe(false);
     expect(client.calls.filter((c) => c.method === "getMempool").map((c) => c.query.fullTransactions)).toEqual([true]);
@@ -655,14 +657,14 @@ describe("BCHDExplorer.vue mempool page", () => {
   });
 
   it("sorts by output value, fee rate or size", async () => {
-    const { wrapper } = mountExplorer({ client: smallMempoolClient(), path: "/mainnet/mempool" });
+    const { wrapper } = await mountExplorer({ client: smallMempoolClient(), path: "/mainnet/mempool" });
     await settle();
     const order = () => mempoolRows(wrapper).map((r) => r[0].slice(-4));
     // Output value first: 900000, 5000, 300 satoshis.
     expect(order()).toEqual(["5002", "5001", "5003"]);
     expect(mempoolRows(wrapper)[0].slice(1)).toEqual(["400 B", "3.00 sat/B", "0.009 BCH", "CashToken"]);
     const sortBy = async (label) => {
-      wrapper.findAll(".sort a").filter((a) => a.text() === label).at(0).trigger("click");
+      wrapper.findAll(".sort a").filter((a) => a.text() === label)[0].trigger("click");
       await settle(2);
     };
     await sortBy("Fee rate");
@@ -675,17 +677,17 @@ describe("BCHDExplorer.vue mempool page", () => {
   it("pages the transactions and refreshes on request", async () => {
     const txs = Array.from({ length: 120 }, (_, i) => mempoolTx(i, { value: 1000 + i }));
     const client = fakeClient({ getMempoolInfo: () => mempoolInfo(120, 30000), getMempool: () => mempool({ txs }) });
-    const { wrapper } = mountExplorer({ client, path: "/mainnet/mempool" });
+    const { wrapper } = await mountExplorer({ client, path: "/mainnet/mempool" });
     await settle();
     expect(wrapper.find(".mempool-list .pager").text()).toContain("Page 1 of 3");
     expect(mempoolRows(wrapper).length).toBe(50);
-    wrapper.findAll(".mempool-list .pager a").filter((a) => a.text().includes("Next")).at(0).trigger("click");
+    wrapper.findAll(".mempool-list .pager a").filter((a) => a.text().includes("Next"))[0].trigger("click");
     await settle(2);
     expect(wrapper.find(".mempool-list .pager").text()).toContain("Page 2 of 3");
 
     client.getMempoolInfo = () => Promise.resolve(mempoolInfo(1, 250));
     client.getMempool = () => Promise.resolve(mempool({ txs: [txs[0]] }));
-    wrapper.findAll("#mempool a").filter((a) => a.text() === "Refresh").at(0).trigger("click");
+    wrapper.findAll("#mempool a").filter((a) => a.text() === "Refresh")[0].trigger("click");
     await settle();
     expect(cell(wrapper.find("#mempool"), "Unconfirmed Transactions").text()).toBe("1");
     expect(wrapper.find(".mempool-list .pager").exists()).toBe(false);
@@ -710,7 +712,7 @@ describe("BCHDExplorer.vue mempool page", () => {
         return transactionResponse(mempoolTx(n, { size: 500, value: 2000, fee: 500 }));
       },
     });
-    const { wrapper } = mountExplorer({ client, path: "/mainnet/mempool" });
+    const { wrapper } = await mountExplorer({ client, path: "/mainnet/mempool" });
     await settle(80);
     expect(client.calls.filter((c) => c.method === "getMempool").map((c) => c.query.fullTransactions)).toEqual([false]);
     expect(wrapper.find("#mempool").text()).toContain("too large to fetch at once");
@@ -723,7 +725,7 @@ describe("BCHDExplorer.vue mempool page", () => {
     expect(rows[0].slice(1)).toEqual(["500 B", "1.00 sat/B", "0.00002 BCH", ""]);
     expect(rows[3][1]).toBe("Details unavailable");
 
-    wrapper.findAll(".mempool-list .pager a").filter((a) => a.text().includes("Next")).at(0).trigger("click");
+    wrapper.findAll(".mempool-list .pager a").filter((a) => a.text().includes("Next"))[0].trigger("click");
     await settle(80);
     expect(client.count("getTransaction")).toBe(100);
     expect(mempoolRows(wrapper)[0][0]).toBe(`${txids[50].slice(0, 10)}\u2026${txids[50].slice(-10)}`);
@@ -734,24 +736,24 @@ describe("BCHDExplorer.vue mempool page", () => {
       getMempoolInfo: () => mempoolInfo(0, 0),
       getDoubleSpendProofs: () => { throw grpcError(Code.Unimplemented, "unknown method"); },
     });
-    const { wrapper } = mountExplorer({ client, path: "/mainnet/mempool" });
+    const { wrapper } = await mountExplorer({ client, path: "/mainnet/mempool" });
     await settle();
     expect(wrapper.find("#mempool").text()).not.toContain("Double Spend Proofs");
     expect(wrapper.find(".mempool-list").exists()).toBe(false);
 
     const none = fakeClient({ getMempoolInfo: () => mempoolInfo(0, 0) });
-    const second = mountExplorer({ client: none, path: "/mainnet/mempool" });
+    const second = await mountExplorer({ client: none, path: "/mainnet/mempool" });
     await settle();
     expect(second.wrapper.find("#mempool").text()).toContain("None in the mempool.");
 
     const failing = fakeClient({ getMempoolInfo: () => { throw grpcError(Code.ResourceExhausted, "busy"); } });
-    const third = mountExplorer({ client: failing, path: "/mainnet/mempool" });
+    const third = await mountExplorer({ client: failing, path: "/mainnet/mempool" });
     await settle();
     expect(third.wrapper.find("#mempool").text()).toContain("The node is busy (a request limit was reached). Try again shortly.");
   });
 
   it("follows back to the home page and opens links on the right network", async () => {
-    const { wrapper, router } = mountExplorer({ client: smallMempoolClient() });
+    const { wrapper, router } = await mountExplorer({ client: smallMempoolClient() });
     await settle();
     router.push("/mainnet/mempool");
     await settle();
@@ -762,7 +764,7 @@ describe("BCHDExplorer.vue mempool page", () => {
     expect(wrapper.find("#mempoolstats").exists()).toBe(true);
 
     const testnet = fakeClient({ getBlockchainInfo: () => blockchainInfo({ net: 4 }) });
-    const t = mountExplorer({ client: testnet, path: "/testnet4/mempool" });
+    const t = await mountExplorer({ client: testnet, path: "/testnet4/mempool" });
     await settle();
     expect(t.wrapper.vm.selectedNetwork).toBe("https://bchd-testnet.greyh.at:18335");
     expect(t.wrapper.find("#mempool").exists()).toBe(true);
@@ -784,14 +786,14 @@ describe("BCHDExplorer.vue home page", () => {
         return block({ height: q.index, txids: [hexHash(1), hexHash(2), hexHash(3)] });
       },
     });
-    const { wrapper } = mountExplorer({ client });
+    const { wrapper } = await mountExplorer({ client });
     await settle(40);
     expect(wrapper.vm.recentBlocks.map((b) => b.height)).toEqual([1000, 999, 998, 997, 996, 995, 994, 993, 992, 991]);
     expect(most).toBeLessThanOrEqual(3);
     const rows = wrapper.findAll("#recentblocks tbody tr");
     expect(rows.length).toBe(10);
-    expect(rows.at(0).findAll("td").at(2).text()).toBe("3");
-    expect(rows.at(0).find("a").attributes("href")).toBe("/mainnet/block/1000");
+    expect(rows[0].findAll("td")[2].text()).toBe("3");
+    expect(rows[0].find("a").attributes("href")).toBe("/mainnet/block/1000");
 
     // The same tip isn't fetched again; a new one is.
     const calls = client.count("getBlock");
@@ -810,7 +812,7 @@ describe("BCHDExplorer.vue home page", () => {
       getMempoolInfo: () => mempoolInfo(91, 61497),
       getDoubleSpendProofs: () => doubleSpendProofs([proof, proof]),
     });
-    const { wrapper } = mountExplorer({ client });
+    const { wrapper } = await mountExplorer({ client });
     await settle();
     expect(wrapper.find("#mempoolstats h2").text()).toBe("Mempool");
     expect(mempoolCells(wrapper)).toEqual([
@@ -831,7 +833,7 @@ describe("BCHDExplorer.vue home page", () => {
       getMempoolInfo: () => mempoolInfo(5, 1000),
       getDoubleSpendProofs: () => { throw grpcError(Code.Unavailable, "double spend proofs are disabled"); },
     });
-    const { wrapper } = mountExplorer({ client });
+    const { wrapper } = await mountExplorer({ client });
     await settle();
     expect(mempoolCells(wrapper)).toEqual([["Unconfirmed Transactions", "Size"], ["5", "1 kB"]]);
 
@@ -848,7 +850,7 @@ describe("BCHDExplorer.vue home page", () => {
       getMempoolInfo: () => mempoolInfo(3, 600),
       getBlock: (q) => block({ height: q.index }),
     });
-    const { wrapper } = mountExplorer({ client, path: "/mainnet/block/5" });
+    const { wrapper } = await mountExplorer({ client, path: "/mainnet/block/5" });
     await settle();
     expect(wrapper.find("#mempoolstats").exists()).toBe(false);
     expect(client.count("getMempoolInfo")).toBe(0);
@@ -859,7 +861,7 @@ describe("BCHDExplorer.vue home page", () => {
       getBlockchainInfo: () => blockchainInfo({ height: 20 }),
       getBlock: (q) => block({ height: q.index }),
     });
-    const { wrapper } = mountExplorer({ client });
+    const { wrapper } = await mountExplorer({ client });
     await settle(20);
     expect(wrapper.find("#recentblocks").exists()).toBe(true);
     await wrapper.vm.searchBCHD("5");

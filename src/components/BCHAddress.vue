@@ -16,7 +16,7 @@
   <div id="bchaddress">
     <table class="table is-bordered is-striped" align="center">
       <thead>
-        <th colspan="2">{{address}}</th>
+        <tr><th colspan="2">{{address}}</th></tr>
       </thead>
       <tbody>
         <tr>
