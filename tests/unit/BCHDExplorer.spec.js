@@ -25,19 +25,21 @@ import {
   fakeClient,
   grpcError,
   hexHash,
+  mempool,
   mempoolInfo,
   transaction,
   transactionResponse,
   unspentOutputs,
 } from "./fixtures";
 
-const Code = { Unknown: 2, NotFound: 5, ResourceExhausted: 8, Aborted: 10, Unavailable: 14 };
+const Code = { Unknown: 2, NotFound: 5, ResourceExhausted: 8, Aborted: 10, Unimplemented: 12, Unavailable: 14 };
 
 const ROUTES = [
   { name: "home", path: "/" },
   { name: "address", path: "/:network/address/:address" },
   { name: "block", path: "/:network/block/:blockHash" },
   { name: "tx", path: "/:network/tx/:txId" },
+  { name: "mempool", path: "/:network/mempool" },
 ];
 
 const ADDRESS = "qqm3qwahv44xz4vyrv9nh46xwsha6eqzdgv2taxj2j";
@@ -483,6 +485,28 @@ function deferred() {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// mempoolTx builds an unconfirmed transaction paying fee satoshis from one
+// input, with a total output value of value.
+function mempoolTx(n, { size = 250, value = 1000, fee = 250, cashToken, slp } = {}) {
+  const tx = transaction({
+    txid: hexHash(0x5000 + n),
+    size,
+    inputs: [{ prev: hexHash(0x9000 + n), value: value + fee, address: ADDRESS }],
+    outputs: [{ value, address: ADDRESS, cashToken }],
+  });
+  if (slp) {
+    tx.getSlpTransactionInfo().setSlpAction(6);
+  }
+  return tx;
+}
+
+// mempoolRows returns the mempool page's transaction rows as cell texts.
+function mempoolRows(wrapper) {
+  return wrapper
+    .findAll(".mempool-list tbody tr")
+    .wrappers.map((r) => r.findAll("td").wrappers.map((c) => c.text()));
+}
+
 // mempoolCells returns the home page mempool table's header and row texts.
 function mempoolCells(wrapper) {
   return wrapper.findAll("#mempoolstats tr").wrappers.map((r) => r.findAll("th, td").wrappers.map((c) => c.text()));
@@ -583,6 +607,161 @@ describe("BCHDExplorer.vue loading indicators", () => {
     await settle();
     expect(statusTexts(wrapper)).toEqual([]);
     expect(wrapper.findAll("#recentblocks tbody tr").length).toBe(10);
+  });
+});
+
+describe("BCHDExplorer.vue mempool page", () => {
+  function smallMempoolClient() {
+    const txs = [
+      mempoolTx(1, { size: 200, value: 5000, fee: 200 }),
+      mempoolTx(2, { size: 400, value: 900000, fee: 1200, cashToken: { category: CATEGORY, amount: "7", bitfield: 0x10 } }),
+      mempoolTx(3, { size: 1000, value: 300, fee: 1500, slp: true }),
+    ];
+    return fakeClient({
+      getMempoolInfo: () => mempoolInfo(3, 1600),
+      getMempool: () => mempool({ txs }),
+      getDoubleSpendProofs: () => doubleSpendProofs([{ proofHash: hexHash(0xd5), txid: hexHash(0x5001), outpointTxid: hexHash(0x9001), vout: 0 }]),
+    });
+  }
+
+  it("opens from the home page and summarizes the mempool", async () => {
+    const client = smallMempoolClient();
+    const { wrapper, router } = mountExplorer({ client });
+    await settle();
+    const link = wrapper.find(".mempool-link");
+    expect(link.attributes("href")).toBe("/mainnet/mempool");
+    link.element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }));
+    await settle();
+    expect(router.currentRoute.path).toBe("/mainnet/mempool");
+    expect(document.title).toBe("Mempool \u00b7 BCHD Explorer");
+    expect(wrapper.find("#recentblocks").exists()).toBe(false);
+    expect(client.calls.filter((c) => c.method === "getMempool").map((c) => c.query.fullTransactions)).toEqual([true]);
+
+    const summary = (label) => cell(wrapper.find("#mempool"), label).text();
+    expect(summary("Unconfirmed Transactions")).toBe("3");
+    expect(summary("Size")).toBe("1.6 kB");
+    // Fee rates are 1.00, 3.00 and 1.50 sat/B.
+    expect(summary("Fee Rate (min / median / max)")).toBe("1.00 sat/B / 1.50 sat/B / 3.00 sat/B");
+    expect(summary("Total Output Value")).toBe("0.009053 BCH");
+    expect(summary("CashToken Transactions")).toBe("1");
+    expect(summary("SLP Transactions")).toBe("1");
+    expect(wrapper.find("#mempool").text()).toContain("Double Spend Proofs");
+    expect(wrapper.findAll("#mempool a").filter((a) => a.attributes("href") === `/mainnet/tx/${hexHash(0x5001)}`).length).toBeGreaterThan(0);
+  });
+
+  it("sorts by output value, fee rate or size", async () => {
+    const { wrapper } = mountExplorer({ client: smallMempoolClient(), path: "/mainnet/mempool" });
+    await settle();
+    const order = () => mempoolRows(wrapper).map((r) => r[0].slice(-4));
+    // Output value first: 900000, 5000, 300 satoshis.
+    expect(order()).toEqual(["5002", "5001", "5003"]);
+    expect(mempoolRows(wrapper)[0].slice(1)).toEqual(["400 B", "3.00 sat/B", "0.009 BCH", "CashToken"]);
+    const sortBy = async (label) => {
+      wrapper.findAll(".sort a").filter((a) => a.text() === label).at(0).trigger("click");
+      await settle(2);
+    };
+    await sortBy("Fee rate");
+    expect(order()).toEqual(["5002", "5003", "5001"]);
+    await sortBy("Size");
+    expect(order()).toEqual(["5003", "5002", "5001"]);
+    expect(wrapper.find(".sort strong").text()).toBe("Size");
+  });
+
+  it("pages the transactions and refreshes on request", async () => {
+    const txs = Array.from({ length: 120 }, (_, i) => mempoolTx(i, { value: 1000 + i }));
+    const client = fakeClient({ getMempoolInfo: () => mempoolInfo(120, 30000), getMempool: () => mempool({ txs }) });
+    const { wrapper } = mountExplorer({ client, path: "/mainnet/mempool" });
+    await settle();
+    expect(wrapper.find(".mempool-list .pager").text()).toContain("Page 1 of 3");
+    expect(mempoolRows(wrapper).length).toBe(50);
+    wrapper.findAll(".mempool-list .pager a").filter((a) => a.text().includes("Next")).at(0).trigger("click");
+    await settle(2);
+    expect(wrapper.find(".mempool-list .pager").text()).toContain("Page 2 of 3");
+
+    client.getMempoolInfo = () => Promise.resolve(mempoolInfo(1, 250));
+    client.getMempool = () => Promise.resolve(mempool({ txs: [txs[0]] }));
+    wrapper.findAll("#mempool a").filter((a) => a.text() === "Refresh").at(0).trigger("click");
+    await settle();
+    expect(cell(wrapper.find("#mempool"), "Unconfirmed Transactions").text()).toBe("1");
+    expect(wrapper.find(".mempool-list .pager").exists()).toBe(false);
+  });
+
+  it("lists a large mempool by hash and loads details a page at a time", async () => {
+    const txids = Array.from({ length: 5001 }, (_, i) => hexHash(0x5000 + i));
+    let active = 0;
+    let most = 0;
+    const client = fakeClient({
+      getMempoolInfo: () => mempoolInfo(5001, 1250000),
+      getMempool: (q) => (q.fullTransactions ? Promise.reject(new Error("too big")) : mempool({ txids })),
+      getTransaction: async (q) => {
+        active++;
+        most = Math.max(most, active);
+        await new Promise((resolve) => setTimeout(resolve, 1));
+        active--;
+        const n = parseInt(q.hash, 16) - 0x5000;
+        if (n === 3) {
+          throw grpcError(Code.NotFound, "transaction not found");
+        }
+        return transactionResponse(mempoolTx(n, { size: 500, value: 2000, fee: 500 }));
+      },
+    });
+    const { wrapper } = mountExplorer({ client, path: "/mainnet/mempool" });
+    await settle(80);
+    expect(client.calls.filter((c) => c.method === "getMempool").map((c) => c.query.fullTransactions)).toEqual([false]);
+    expect(wrapper.find("#mempool").text()).toContain("too large to fetch at once");
+    expect(wrapper.find(".sort").exists()).toBe(false);
+    expect(cell(wrapper.find("#mempool"), "Fee Rate (min / median / max)")).toBe(null);
+    expect(wrapper.find(".mempool-list .pager").text()).toContain("Page 1 of 101");
+    expect(client.count("getTransaction")).toBe(50);
+    expect(most).toBeLessThanOrEqual(3);
+    const rows = mempoolRows(wrapper);
+    expect(rows[0].slice(1)).toEqual(["500 B", "1.00 sat/B", "0.00002 BCH", ""]);
+    expect(rows[3][1]).toBe("Details unavailable");
+
+    wrapper.findAll(".mempool-list .pager a").filter((a) => a.text().includes("Next")).at(0).trigger("click");
+    await settle(80);
+    expect(client.count("getTransaction")).toBe(100);
+    expect(mempoolRows(wrapper)[0][0]).toBe(`${txids[50].slice(0, 10)}\u2026${txids[50].slice(-10)}`);
+  });
+
+  it("handles nodes without proofs, and failures", async () => {
+    const client = fakeClient({
+      getMempoolInfo: () => mempoolInfo(0, 0),
+      getDoubleSpendProofs: () => { throw grpcError(Code.Unimplemented, "unknown method"); },
+    });
+    const { wrapper } = mountExplorer({ client, path: "/mainnet/mempool" });
+    await settle();
+    expect(wrapper.find("#mempool").text()).not.toContain("Double Spend Proofs");
+    expect(wrapper.find(".mempool-list").exists()).toBe(false);
+
+    const none = fakeClient({ getMempoolInfo: () => mempoolInfo(0, 0) });
+    const second = mountExplorer({ client: none, path: "/mainnet/mempool" });
+    await settle();
+    expect(second.wrapper.find("#mempool").text()).toContain("None in the mempool.");
+
+    const failing = fakeClient({ getMempoolInfo: () => { throw grpcError(Code.ResourceExhausted, "busy"); } });
+    const third = mountExplorer({ client: failing, path: "/mainnet/mempool" });
+    await settle();
+    expect(third.wrapper.find("#mempool").text()).toContain("The node is busy (a request limit was reached). Try again shortly.");
+  });
+
+  it("follows back to the home page and opens links on the right network", async () => {
+    const { wrapper, router } = mountExplorer({ client: smallMempoolClient() });
+    await settle();
+    router.push("/mainnet/mempool");
+    await settle();
+    expect(wrapper.find("#mempool").exists()).toBe(true);
+    router.back();
+    await settle();
+    expect(wrapper.find("#mempool").exists()).toBe(false);
+    expect(wrapper.find("#mempoolstats").exists()).toBe(true);
+
+    const testnet = fakeClient({ getBlockchainInfo: () => blockchainInfo({ net: 4 }) });
+    const t = mountExplorer({ client: testnet, path: "/testnet4/mempool" });
+    await settle();
+    expect(t.wrapper.vm.selectedNetwork).toBe("https://bchd-testnet.greyh.at:18335");
+    expect(t.wrapper.find("#mempool").exists()).toBe(true);
+    expect(testnet.count("getMempool")).toBe(1);
   });
 });
 

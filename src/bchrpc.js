@@ -60,6 +60,14 @@ export class BchrpcClient {
     return this.unary("getMempoolInfo", new pb.GetMempoolInfoRequest());
   }
 
+  // getMempool lists the mempool's transactions: their hashes, or with
+  // fullTransactions, the transactions (about 1.5 kB each).
+  getMempool({ fullTransactions = false } = {}) {
+    const req = new pb.GetMempoolRequest();
+    req.setFullTransactions(fullTransactions);
+    return this.unary("getMempool", req);
+  }
+
   getBlockInfo({ index, hash, reversedHashOrder }) {
     const req = new pb.GetBlockInfoRequest();
     if (index !== null && index !== undefined) {

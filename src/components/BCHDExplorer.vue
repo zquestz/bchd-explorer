@@ -16,7 +16,10 @@
 
 <template>
   <div class="explorer">
-    <section class="section" :aria-busy="searching || connecting ? 'true' : 'false'">
+    <section
+      class="section"
+      :aria-busy="searching || connecting || mempoolLoading ? 'true' : 'false'"
+    >
       <div class="container has-text-right">
         <select v-model="selectedNetwork" @change="updateNetwork">
           <option v-for="node in nodes" :value="node.url" :key="node.url">
@@ -107,6 +110,24 @@
             </tr>
           </tbody>
         </table>
+        <router-link
+          class="mempool-link"
+          :to="{ name: 'mempool', params: { network } }"
+          >View mempool &rarr;</router-link
+        >
+      </div>
+      <div
+        class="container results"
+        v-if="mempoolView && !address && !block && !transaction"
+      >
+        <Mempool
+          :mempool="mempool"
+          :loading="mempoolLoading"
+          :error="mempoolError"
+          :network="network"
+          :loadDetails="loadMempoolDetails"
+          @refresh="loadMempool"
+        />
       </div>
       <div class="container results" v-if="isHome && recentBlocks.length">
         <RecentBlocks :blocks="recentBlocks" :network="network" />
@@ -133,6 +154,7 @@ import bchaddr from "bchaddrjs-slp";
 import BCHAddress from "./BCHAddress.vue";
 import BCHBlock from "./BCHBlock.vue";
 import BCHTransaction from "./BCHTransaction.vue";
+import Mempool from "./Mempool.vue";
 import RecentBlocks from "./RecentBlocks.vue";
 import ResultLink from "./ResultLink.vue";
 import sb from "satoshi-bitcoin";
@@ -152,6 +174,14 @@ const MAX_ADDRESS_TXS = 10000;
 // (mining.UnminedHeight).
 const UNMINED_HEIGHT = 0x7fffffff;
 
+
+// The mempool page fetches whole mempools up to this many transactions
+// (about 1.5 kB each); larger ones are listed by hash, with details fetched
+// a page at a time, MEMPOOL_DETAILS_CONCURRENCY lookups at once.
+const MEMPOOL_FULL_LIMIT = 5000;
+const MEMPOOL_DETAILS_CONCURRENCY = 3;
+// SlpAction values from SLP_V1_GENESIS up are SLP token transactions.
+const SLP_V1_GENESIS = 4;
 
 // How long a search runs before "Searching…" appears, in milliseconds.
 const SEARCHING_TEXT_DELAY = 300;
@@ -208,6 +238,7 @@ export default {
     BCHAddress,
     BCHBlock,
     BCHTransaction,
+    Mempool,
     RecentBlocks,
     ResultLink,
   },
@@ -220,6 +251,10 @@ export default {
       // { count, bytes, proofs } for the home page; proofs is null when the
       // node can't list double spend proofs.
       mempoolStats: null,
+      // The mempool page's snapshot (see loadMempool) and its state.
+      mempool: null,
+      mempoolLoading: false,
+      mempoolError: "",
       recentBlocks: [],
       // The tip height recentBlocks was loaded for.
       recentBlocksTip: null,
@@ -278,13 +313,19 @@ export default {
         subject = `Block ${this.blockData.height}`;
       } else if (this.transaction) {
         subject = `Transaction ${short(this.transaction)}`;
+      } else if (this.mempoolView) {
+        subject = "Mempool";
       }
       return subject ? `${subject} \u00b7 BCHD Explorer` : "BCHD Explorer";
+    },
+    mempoolView: function () {
+      return this.$route.name === "mempool";
     },
     // isHome is true on the home page while no result is shown.
     isHome: function () {
       return (
         this.routeInput(this.$route) === undefined &&
+        !this.mempoolView &&
         !this.address &&
         !this.block &&
         !this.transaction
@@ -315,6 +356,13 @@ export default {
         this.input = input || "";
         // updateNetwork searches the route's input on the new server.
         this.updateNetwork();
+        return;
+      }
+      if (to.name === "mempool") {
+        this.cancelSearch();
+        this.resetState();
+        this.input = "";
+        this.loadMempool();
         return;
       }
       if (input === undefined) {
@@ -537,6 +585,114 @@ export default {
     },
 
     prettyBytes,
+    // loadMempool fetches the mempool page's snapshot: the whole mempool when
+    // it has at most MEMPOOL_FULL_LIMIT transactions, otherwise their hashes.
+    loadMempool: async function () {
+      const client = this.grpc;
+      if (!client) {
+        return;
+      }
+      const token = ++this.mempoolToken;
+      const current = () => client === this.grpc && token === this.mempoolToken;
+      this.mempoolLoading = true;
+      this.mempoolError = "";
+      try {
+        const [info, proofs] = await Promise.all([
+          client.getMempoolInfo(),
+          client
+            .getDoubleSpendProofs()
+            .then((res) => res.getProofsList().map((p) => this.parseMempoolProof(p)))
+            .catch(() => null),
+        ]);
+        const full = info.getSize() <= MEMPOOL_FULL_LIMIT;
+        const list = (
+          await client.getMempool({ fullTransactions: full })
+        ).getTransactionDataList();
+        if (!current()) {
+          return;
+        }
+        const txs = full
+          ? list.map((td) => this.summarizeMempoolTx(td.getTransaction()))
+          : [];
+        const hashes = full
+          ? []
+          : list.map((td) => this.convertHash(td.getTransactionHash_asU8()));
+        this.mempool = Object.freeze({
+          asOf: Math.floor(Date.now() / 1000),
+          bytes: info.getBytes(),
+          full,
+          txs: Object.freeze(txs),
+          hashes: Object.freeze(hashes),
+          proofs,
+          stats: full ? this.mempoolStatsOf(txs) : null,
+        });
+      } catch (error) {
+        if (current()) {
+          this.mempoolError =
+            this.describeError(error) || "Couldn't load the mempool.";
+        }
+      } finally {
+        if (current()) {
+          this.mempoolLoading = false;
+        }
+      }
+    },
+    // loadMempoolDetails summarizes transactions of a mempool too large to
+    // fetch whole, a few lookups at a time; null for any that failed.
+    loadMempoolDetails: function (txids) {
+      const client = this.grpc;
+      return mapLimit(txids, MEMPOOL_DETAILS_CONCURRENCY, (txid) =>
+        client
+          .getTransaction({
+            hash: txid,
+            reversedHashOrder: true,
+            includeTokenMetadata: false,
+          })
+          .then((res) => this.summarizeMempoolTx(res.getTransaction()))
+      );
+    },
+    // summarizeMempoolTx keeps what the mempool page shows of a transaction.
+    // Its fee comes from input values, which bchd fills in.
+    summarizeMempoolTx: function (tx) {
+      const sum = (items) => items.reduce((s, item) => s + item.getValue(), 0);
+      const value = sum(tx.getOutputsList());
+      const fee = sum(tx.getInputsList()) - value;
+      const slp = tx.getSlpTransactionInfo();
+      return {
+        txid: this.convertHash(tx.getHash_asU8()),
+        size: tx.getSize(),
+        value,
+        fee_rate: fee >= 0 && tx.getSize() > 0 ? fee / tx.getSize() : null,
+        cashtoken:
+          tx.getOutputsList().some((o) => o.getCashToken()) ||
+          tx.getInputsList().some((i) => i.getCashToken()),
+        slp: !!slp && slp.getSlpAction() >= SLP_V1_GENESIS,
+      };
+    },
+    mempoolStatsOf: function (txs) {
+      const rates = txs
+        .map((tx) => tx.fee_rate)
+        .filter((r) => r !== null)
+        .sort((a, b) => a - b);
+      const rate = (r) => `${r.toFixed(2)} sat/B`;
+      return {
+        fee_rates: rates.length
+          ? `${rate(rates[0])} / ${rate(rates[Math.floor(rates.length / 2)])} / ${rate(rates[rates.length - 1])}`
+          : "",
+        total_value: txs.reduce((s, tx) => s + tx.value, 0),
+        cashtokens: txs.filter((tx) => tx.cashtoken).length,
+        slp: txs.filter((tx) => tx.slp).length,
+      };
+    },
+    parseMempoolProof: function (proof) {
+      const outpoint = proof.getOutpoint();
+      return {
+        hash: this.convertHash(proof.getHash_asU8()),
+        txid: this.convertHash(proof.getTransactionHash_asU8()),
+        outpoint_hash: outpoint ? this.convertHash(outpoint.getHash_asU8()) : "",
+        outpoint_index: outpoint ? outpoint.getIndex() : "",
+      };
+    },
     // loadRecentBlocks fetches the newest blocks for the home page, unless
     // they were already fetched for the current tip.
     loadRecentBlocks: async function () {
@@ -1216,6 +1372,10 @@ export default {
       this.recentBlocksTip = null;
       this.loadingRecent = false;
       this.mempoolStats = null;
+      this.mempool = null;
+      this.mempoolError = "";
+      this.mempoolLoading = false;
+      this.mempoolToken++;
       const node = this.nodes.find((n) => n.url === this.selectedNetwork);
       this.network = node ? node.network : MAINNET;
       this.connectingTo = node ? node.name : this.selectedNetwork;
@@ -1237,6 +1397,8 @@ export default {
       const input = params.address || params.blockHash || params.txId;
       if (input != undefined) {
         this.searchBCHD(input);
+      } else if (this.mempoolView) {
+        this.loadMempool();
       }
     },
     newGrpcClient: function () {
@@ -1340,6 +1502,7 @@ export default {
     this.searchToken = 0;
     this.currentQuery = undefined;
     this.searchingTimer = null;
+    this.mempoolToken = 0;
     if (this.getInfoBar) {
       this.getInfo();
       this.infoInterval = setInterval(() => {
@@ -1365,6 +1528,16 @@ export default {
   margin-left: auto;
   display: block;
   margin-bottom: 1em;
+}
+
+/* The home page's mempool table is followed by its link. */
+#mempoolstats .table {
+  margin-bottom: 0.5em;
+}
+
+.mempool-link {
+  display: block;
+  text-align: right;
 }
 
 /* Bulma's .loader is a block; this one sits in a line of text. */

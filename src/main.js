@@ -29,6 +29,7 @@ const router = new VueRouter({
     { name: "address", path: "/:network/address/:address", component: BCHDExplorer },
     { name: "block", path: "/:network/block/:blockHash", component: BCHDExplorer },
     { name: "tx", path: "/:network/tx/:txId", component: BCHDExplorer },
+    { name: "mempool", path: "/:network/mempool", component: BCHDExplorer },
   ]
 })
 

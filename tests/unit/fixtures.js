@@ -190,6 +190,23 @@ export function addressTransactions({ confirmed = [], unconfirmed = [] }) {
   return res;
 }
 
+// mempool builds a GetMempoolResponse: full transactions, or their hashes
+// from txids.
+export function mempool({ txs = [], txids = [] } = {}) {
+  const res = new pb.GetMempoolResponse();
+  txs.forEach((tx) => {
+    const td = new pb.GetMempoolResponse.TransactionData();
+    td.setTransaction(tx);
+    res.addTransactionData(td);
+  });
+  txids.forEach((txid) => {
+    const td = new pb.GetMempoolResponse.TransactionData();
+    td.setTransactionHash(hash(txid));
+    res.addTransactionData(td);
+  });
+  return res;
+}
+
 export function mempoolInfo(count, bytes) {
   const res = new pb.GetMempoolInfoResponse();
   res.setSize(count);
@@ -242,6 +259,7 @@ export function fakeClient(handlers = {}) {
       Promise.reject(grpcError(NOT_FOUND, "double spend proof not found")),
     getDoubleSpendProofScore: () => dsproofScore(1),
     getMempoolInfo: () => mempoolInfo(0, 0),
+    getMempool: () => mempool(),
     getDoubleSpendProofs: () => doubleSpendProofs([]),
   };
   const client = { calls };
