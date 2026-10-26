@@ -45,7 +45,7 @@
               v-model="input"
               :autofocus="'autofocus'"
               autocomplete="off"
-              placeholder="Address, transaction or block hash/height"
+              placeholder="Address, transaction or block"
               @keyup.enter="search"
             />
             <span class="icon is-small is-left">
@@ -105,22 +105,24 @@
         v-if="isHome && mempoolStats"
       >
         <h2>Mempool</h2>
-        <table class="table is-bordered is-striped" align="center">
-          <thead>
-            <tr>
-              <th>Unconfirmed Transactions</th>
-              <th>Size</th>
-              <th v-if="mempoolStats.proofs !== null">Double Spend Proofs</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>{{ mempoolStats.count }}</td>
-              <td>{{ prettyBytes(mempoolStats.bytes) }}</td>
-              <td v-if="mempoolStats.proofs !== null">{{ mempoolStats.proofs }}</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="table-container">
+          <table class="table is-bordered is-striped" align="center">
+            <thead>
+              <tr>
+                <th>Unconfirmed Transactions</th>
+                <th>Size</th>
+                <th v-if="mempoolStats.proofs !== null">Double Spend Proofs</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>{{ mempoolStats.count }}</td>
+                <td>{{ prettyBytes(mempoolStats.bytes) }}</td>
+                <td v-if="mempoolStats.proofs !== null">{{ mempoolStats.proofs }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
         <router-link
           class="mempool-link"
           :to="{ name: 'mempool', params: { network } }"
@@ -1567,10 +1569,13 @@ export default {
   margin-left: auto;
   display: block;
   margin-bottom: 1em;
+  /* Scales down on screens narrower than the logo. */
+  max-width: 100%;
+  height: auto;
 }
 
 /* The home page's mempool table is followed by its link. */
-#mempoolstats .table {
+#mempoolstats .table-container {
   margin-bottom: 0.5em;
 }
 
@@ -1614,6 +1619,25 @@ th,
 table {
   table-layout: fixed;
   width: 100%;
+}
+
+/* On phones, tables with a row per item fit their columns to their contents
+   and keep each cell on one line, scrolling sideways inside their container
+   when that is still too wide. The home page's mempool table wraps its
+   headers between words instead. */
+@media screen and (max-width: 768px) {
+  .table-container table {
+    table-layout: auto;
+  }
+
+  .table-container td,
+  .table-container th {
+    white-space: nowrap;
+  }
+
+  #mempoolstats th {
+    white-space: normal;
+  }
 }
 
 footer {

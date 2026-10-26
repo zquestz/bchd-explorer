@@ -67,54 +67,58 @@
         Only the newest {{maxListed}} confirmed transactions are listed.
       </p>
       <Pager :page="txPage" :pages="pageCount(addressData['transaction_list'])" @change="txPage = $event" />
-      <table class="table is-bordered is-striped" align="center">
-        <thead>
-          <tr>
-            <th>Transaction</th>
-            <th class="narrow">Block</th>
-            <th class="narrow">Time</th>
-            <th class="amount">Change</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="tx in pageOf(addressData['transaction_list'], txPage)" :key="tx.txid">
-            <td><ResultLink type="tx" :value="tx.txid" :label="shortHash(tx.txid)" :network="network" /></td>
-            <td>
-              <ResultLink v-if="tx.height !== null" type="block" :value="tx.height" :network="network" />
-              <span v-else>Unconfirmed</span>
-            </td>
-            <td :title="tx.timestamp ? formatTime(tx.timestamp) : ''">{{tx.timestamp ? formatAge(tx.timestamp) : ''}}</td>
-            <td :class="tx.net < 0 ? 'negative' : 'positive'">{{formatChange(tx.net)}}</td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="table-container">
+        <table class="table is-bordered is-striped" align="center">
+          <thead>
+            <tr>
+              <th>Transaction</th>
+              <th class="narrow">Block</th>
+              <th class="narrow">Time</th>
+              <th class="amount">Change</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="tx in pageOf(addressData['transaction_list'], txPage)" :key="tx.txid">
+              <td><ResultLink type="tx" :value="tx.txid" :label="shortHash(tx.txid)" :network="network" /></td>
+              <td>
+                <ResultLink v-if="tx.height !== null" type="block" :value="tx.height" :network="network" />
+                <span v-else>Unconfirmed</span>
+              </td>
+              <td :title="tx.timestamp ? formatTime(tx.timestamp) : ''">{{tx.timestamp ? formatAge(tx.timestamp) : ''}}</td>
+              <td :class="tx.net < 0 ? 'negative' : 'positive'">{{formatChange(tx.net)}}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
       <Pager :page="txPage" :pages="pageCount(addressData['transaction_list'])" @change="txPage = $event" />
     </section>
 
     <section class="address-list" v-if="addressData['utxo_list'].length">
       <h2>Unspent Outputs</h2>
       <Pager :page="utxoPage" :pages="pageCount(addressData['utxo_list'])" @change="utxoPage = $event" />
-      <table class="table is-bordered is-striped" align="center">
-        <thead>
-          <tr>
-            <th>Output</th>
-            <th class="narrow">Block</th>
-            <th class="amount">Value</th>
-            <th>Token</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="utxo in pageOf(addressData['utxo_list'], utxoPage)" :key="utxo.txid + ':' + utxo.vout">
-            <td><ResultLink type="tx" :value="utxo.txid" :label="shortHash(utxo.txid)" :network="network" />:{{utxo.vout}}</td>
-            <td>
-              <ResultLink v-if="utxo.height !== null" type="block" :value="utxo.height" :network="network" />
-              <span v-else>Unconfirmed</span>
-            </td>
-            <td>{{formatBch(utxo.value)}}</td>
-            <td>{{tokenLabel(utxo)}}</td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="table-container">
+        <table class="table is-bordered is-striped" align="center">
+          <thead>
+            <tr>
+              <th>Output</th>
+              <th class="narrow">Block</th>
+              <th class="amount">Value</th>
+              <th>Token</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="utxo in pageOf(addressData['utxo_list'], utxoPage)" :key="utxo.txid + ':' + utxo.vout">
+              <td><ResultLink type="tx" :value="utxo.txid" :label="shortHash(utxo.txid)" :network="network" />:{{utxo.vout}}</td>
+              <td>
+                <ResultLink v-if="utxo.height !== null" type="block" :value="utxo.height" :network="network" />
+                <span v-else>Unconfirmed</span>
+              </td>
+              <td>{{formatBch(utxo.value)}}</td>
+              <td>{{tokenLabel(utxo)}}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
       <Pager :page="utxoPage" :pages="pageCount(addressData['utxo_list'])" @change="utxoPage = $event" />
     </section>
   </div>
@@ -203,16 +207,19 @@ export default {
   margin-bottom: 1.5rem;
 }
 
-.address-list .table {
+.address-list .table-container {
   margin-bottom: 0;
 }
 
-.narrow {
-  width: 8em;
-}
+/* On phones the columns fit their contents instead (see BCHDExplorer.vue). */
+@media screen and (min-width: 769px) {
+  .narrow {
+    width: 8em;
+  }
 
-.amount {
-  width: 12em;
+  .amount {
+    width: 12em;
+  }
 }
 
 .positive {

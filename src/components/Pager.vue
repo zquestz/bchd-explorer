@@ -14,11 +14,11 @@
 <!-- Previous/next page controls; emits "change" with the new page. -->
 <template>
   <nav class="pager" v-if="pages > 1">
-    <a v-if="page > 1" href="#" @click.prevent="$emit('change', page - 1)">&larr; Previous page</a>
-    <span v-else class="disabled">&larr; Previous page</span>
+    <a v-if="page > 1" href="#" @click.prevent="$emit('change', page - 1)">&larr; Previous</a>
+    <span v-else class="disabled">&larr; Previous</span>
     <span>Page {{page}} of {{pages}}</span>
-    <a v-if="page < pages" href="#" @click.prevent="$emit('change', page + 1)">Next page &rarr;</a>
-    <span v-else class="disabled">Next page &rarr;</span>
+    <a v-if="page < pages" href="#" @click.prevent="$emit('change', page + 1)">Next &rarr;</a>
+    <span v-else class="disabled">Next &rarr;</span>
   </nav>
 </template>
 
@@ -33,7 +33,9 @@ export default {
 <style scoped>
 .pager {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
+  column-gap: 0.5em;
   margin: 0.5em 0;
 }
 

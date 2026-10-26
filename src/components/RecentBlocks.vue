@@ -14,26 +14,28 @@
 <template>
   <div id="recentblocks">
     <h2>Recent Blocks</h2>
-    <table class="table is-bordered is-striped" align="center">
-      <thead>
-        <tr>
-          <th class="height">Height</th>
-          <th class="age">Age</th>
-          <th class="count">Transactions</th>
-          <th class="size">Size</th>
-          <th>Hash</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="block in blocks" :key="block.hash">
-          <td><ResultLink type="block" :value="block.height" :network="network" /></td>
-          <td :title="formatTime(block.timestamp)">{{formatAge(block.timestamp)}}</td>
-          <td>{{block.transaction_count}}</td>
-          <td>{{prettyBytes(block.size)}}</td>
-          <td><ResultLink type="block" :value="block.hash" :label="shortHash(block.hash)" :network="network" /></td>
-        </tr>
-      </tbody>
-    </table>
+    <div class="table-container">
+      <table class="table is-bordered is-striped" align="center">
+        <thead>
+          <tr>
+            <th class="height">Height</th>
+            <th class="age">Age</th>
+            <th class="count">Transactions</th>
+            <th class="size">Size</th>
+            <th>Hash</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="block in blocks" :key="block.hash">
+            <td><ResultLink type="block" :value="block.height" :network="network" /></td>
+            <td :title="formatTime(block.timestamp)">{{formatAge(block.timestamp)}}</td>
+            <td>{{block.transaction_count}}</td>
+            <td>{{prettyBytes(block.size)}}</td>
+            <td><ResultLink type="block" :value="block.hash" :label="shortHash(block.hash)" :network="network" /></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </template>
 
@@ -63,13 +65,16 @@ export default {
 </script>
 
 <style scoped>
-.height,
-.count,
-.size {
-  width: 8em;
-}
+/* On phones the columns fit their contents instead (see BCHDExplorer.vue). */
+@media screen and (min-width: 769px) {
+  .height,
+  .count,
+  .size {
+    width: 8em;
+  }
 
-.age {
-  width: 9em;
+  .age {
+    width: 9em;
+  }
 }
 </style>

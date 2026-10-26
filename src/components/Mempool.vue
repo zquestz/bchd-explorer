@@ -65,22 +65,24 @@
       <section class="mempool-proofs" v-if="mempool.proofs !== null">
         <h2>Double Spend Proofs</h2>
         <p v-if="!mempool.proofs.length">None in the mempool.</p>
-        <table v-else class="table is-bordered is-striped" align="center">
-          <thead>
-            <tr>
-              <th>Transaction</th>
-              <th>Double Spent Output</th>
-              <th>Proof</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="proof in mempool.proofs" :key="proof.hash">
-              <td><ResultLink type="tx" :value="proof.txid" :label="shortHash(proof.txid)" :network="network" /></td>
-              <td><ResultLink type="tx" :value="proof.outpoint_hash" :label="shortHash(proof.outpoint_hash)" :network="network" />:{{proof.outpoint_index}}</td>
-              <td>{{shortHash(proof.hash)}}</td>
-            </tr>
-          </tbody>
-        </table>
+        <div v-else class="table-container">
+          <table class="table is-bordered is-striped" align="center">
+            <thead>
+              <tr>
+                <th>Transaction</th>
+                <th>Double Spent Output</th>
+                <th>Proof</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="proof in mempool.proofs" :key="proof.hash">
+                <td><ResultLink type="tx" :value="proof.txid" :label="shortHash(proof.txid)" :network="network" /></td>
+                <td><ResultLink type="tx" :value="proof.outpoint_hash" :label="shortHash(proof.outpoint_hash)" :network="network" />:{{proof.outpoint_index}}</td>
+                <td>{{shortHash(proof.hash)}}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section class="mempool-list" v-if="listLength">
@@ -98,30 +100,32 @@
           the node's order and their details load a page at a time.
         </p>
         <Pager :page="page" :pages="pageCount" @change="page = $event" />
-        <table class="table is-bordered is-striped" align="center">
-          <thead>
-            <tr>
-              <th>Transaction</th>
-              <th class="narrow">Size</th>
-              <th class="narrow">Fee Rate</th>
-              <th class="amount">Output Value</th>
-              <th class="narrow">Tokens</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in pageRows" :key="row.txid">
-              <td><ResultLink type="tx" :value="row.txid" :label="shortHash(row.txid)" :network="network" /></td>
-              <template v-if="row.details">
-                <td>{{prettyBytes(row.details.size)}}</td>
-                <td>{{row.details.fee_rate === null ? "" : row.details.fee_rate.toFixed(2) + " sat/B"}}</td>
-                <td>{{formatBch(row.details.value)}}</td>
-                <td>{{tokenLabel(row.details)}}</td>
-              </template>
-              <td v-else-if="row.loading" colspan="4" role="status"><span class="loader inline-loader"></span>Loading&hellip;</td>
-              <td v-else colspan="4">Details unavailable</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="table-container">
+          <table class="table is-bordered is-striped" align="center">
+            <thead>
+              <tr>
+                <th>Transaction</th>
+                <th class="narrow">Size</th>
+                <th class="narrow">Fee Rate</th>
+                <th class="amount">Output Value</th>
+                <th class="narrow">Tokens</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in pageRows" :key="row.txid">
+                <td><ResultLink type="tx" :value="row.txid" :label="shortHash(row.txid)" :network="network" /></td>
+                <template v-if="row.details">
+                  <td>{{prettyBytes(row.details.size)}}</td>
+                  <td>{{row.details.fee_rate === null ? "" : row.details.fee_rate.toFixed(2) + " sat/B"}}</td>
+                  <td>{{formatBch(row.details.value)}}</td>
+                  <td>{{tokenLabel(row.details)}}</td>
+                </template>
+                <td v-else-if="row.loading" colspan="4" role="status"><span class="loader inline-loader"></span>Loading&hellip;</td>
+                <td v-else colspan="4">Details unavailable</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
         <Pager :page="page" :pages="pageCount" @change="page = $event" />
       </section>
     </template>
@@ -252,8 +256,10 @@ export default {
 <style scoped>
 .mempool-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: baseline;
+  column-gap: 1em;
 }
 
 .inline-loader {
@@ -268,7 +274,7 @@ export default {
   margin-bottom: 1.5rem;
 }
 
-.mempool-proofs .table {
+.mempool-proofs .table-container {
   margin-bottom: 0;
 }
 
@@ -277,15 +283,18 @@ export default {
   margin-bottom: 1.5rem;
 }
 
-.mempool-list .table {
+.mempool-list .table-container {
   margin-bottom: 0;
 }
 
-.narrow {
-  width: 8em;
-}
+/* On phones the columns fit their contents instead (see BCHDExplorer.vue). */
+@media screen and (min-width: 769px) {
+  .narrow {
+    width: 8em;
+  }
 
-.amount {
-  width: 12em;
+  .amount {
+    width: 12em;
+  }
 }
 </style>

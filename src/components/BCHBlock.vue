@@ -146,8 +146,22 @@ export default {
 </script>
 
 <style scoped>
-.tx-index {
-  width: 9em;
+@media screen and (min-width: 769px) {
+  .tx-index {
+    width: 9em;
+  }
+}
+
+/* On phones the index column fits its contents, leaving the rest to the
+   hashes, which may break anywhere. */
+@media screen and (max-width: 768px) {
+  .block-transactions .table {
+    table-layout: auto;
+  }
+
+  .block-transactions td:not(.tx-index) {
+    overflow-wrap: anywhere;
+  }
 }
 
 /* The space goes after the list, so the bottom pager sits right under the
