@@ -128,7 +128,7 @@
       </div>
       <div
         class="container results"
-        v-if="mempoolView && !address && !block && !transaction"
+        v-if="mempoolView && routeMatchesNetwork($route) && !address && !block && !transaction"
       >
         <Mempool
           :mempool="mempool"
@@ -373,6 +373,13 @@ export default {
         this.updateNetwork();
         return;
       }
+      if (!this.routeMatchesNetwork(to)) {
+        this.cancelSearch();
+        this.resetState();
+        this.input = input || "";
+        this.result = this.wrongNetworkMessage(to);
+        return;
+      }
       if (to.name === "mempool") {
         this.cancelSearch();
         this.resetState();
@@ -398,12 +405,31 @@ export default {
       const params = route.params;
       return params.address || params.blockHash || params.txId;
     },
+    // networkMatches reports whether a route's network is the selected
+    // server's: the network the node reports once connected, else the one
+    // it's listed with.
+    networkMatches: function (routeNetwork) {
+      return (
+        routeNetwork === this.network ||
+        LEGACY_ROUTE_NETWORKS[routeNetwork] === this.network
+      );
+    },
+    // routeMatchesNetwork reports whether a route can be shown from the
+    // selected server. Looking up its input on another chain would show
+    // that chain's block at the same height, or nothing.
+    routeMatchesNetwork: function (route) {
+      const routeNetwork = route.params.network;
+      return !routeNetwork || this.networkMatches(routeNetwork);
+    },
+    wrongNetworkMessage: function (route) {
+      const routeNetwork = route.params.network;
+      return `This link is for ${routeNetwork}, but ${this.connectingTo} is on ${this.network}.`;
+    },
     // selectNodeForNetwork selects the first listed server for a route's
     // network unless the selected one is for it. Returns whether the
     // selection changed.
     selectNodeForNetwork: function (routeNetwork) {
-      const current = this.nodes.find((n) => n.url === this.selectedNetwork);
-      if (!routeNetwork || (current && current.network === routeNetwork)) {
+      if (!routeNetwork || this.networkMatches(routeNetwork)) {
         return false;
       }
       const match =
@@ -1401,7 +1427,9 @@ export default {
       }
       const params = this.$route.params;
       const input = params.address || params.blockHash || params.txId;
-      if (input != undefined) {
+      if (!this.routeMatchesNetwork(this.$route)) {
+        this.result = this.wrongNetworkMessage(this.$route);
+      } else if (input != undefined) {
         this.searchBCHD(input);
       } else if (this.mempoolView) {
         this.loadMempool();

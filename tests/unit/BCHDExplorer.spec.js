@@ -455,6 +455,61 @@ describe("BCHDExplorer.vue navigation", () => {
     }
   });
 
+  it("doesn't look up links for an unlisted network on another chain", async () => {
+    for (const path of ["/chipnet/block/100", "/chipnet/mempool"]) {
+      const { wrapper, client, router } = await mountExplorer({ client: blockClient(), path });
+      await settle();
+      expect(wrapper.vm.selectedNetwork).toBe("https://bchd.greyh.at:8335");
+      expect(client.count("getBlock")).toBe(0);
+      expect(client.count("getMempool")).toBe(0);
+      expect(router.currentRoute.value.path).toBe(path);
+      expect(wrapper.find(".results strong").text()).toBe(
+        "This link is for chipnet, but bchd.greyh.at is on mainnet."
+      );
+      expect(wrapper.find("#mempool").exists()).toBe(false);
+    }
+  });
+
+  it("doesn't look up an unlisted network's link followed in the app", async () => {
+    const { wrapper, client, router } = await mountExplorer({ client: blockClient() });
+    await settle();
+    // The home page fetched the recent blocks, near the tip.
+    const lookups = () => client.calls.filter((c) => c.method === "getBlock" && c.query.index === 100).length;
+    router.push("/chipnet/block/100");
+    await settle();
+    expect(lookups()).toBe(0);
+    expect(wrapper.vm.input).toBe("100");
+    expect(wrapper.vm.result).toMatch(/^This link is for chipnet/);
+
+    router.push("/mainnet/block/100");
+    await settle();
+    expect(wrapper.vm.result).toBe("");
+    expect(wrapper.vm.blockData.height).toBe(100);
+  });
+
+  it("doesn't look up links on a server reporting another network", async () => {
+    const mainnet = blockClient();
+    const { wrapper } = await mountExplorer({ client: mainnet, path: "/testnet4/block/1" });
+    await settle();
+    expect(wrapper.vm.selectedNetwork).toBe("https://bchd-testnet.greyh.at:18335");
+    expect(mainnet.count("getBlock")).toBe(0);
+    expect(wrapper.vm.result).toBe(
+      "This link is for testnet4, but bchd-testnet.greyh.at is on mainnet."
+    );
+  });
+
+  it("looks up links on a server whose node reports their network", async () => {
+    const chipnet = fakeClient({ getBlockchainInfo: () => blockchainInfo({ net: 5 }) });
+    const { wrapper, router } = await mountExplorer({ client: chipnet });
+    await settle();
+    expect(wrapper.vm.network).toBe("chipnet");
+    router.push("/chipnet/block/100");
+    await settle();
+    expect(wrapper.vm.selectedNetwork).toBe("https://bchd.greyh.at:8335");
+    expect(chipnet.calls.some((c) => c.method === "getBlock" && c.query.index === 100)).toBe(true);
+    expect(wrapper.vm.result).toBe("No address, transaction or block hash/height found.");
+  });
+
   it("ignores a search that finishes after a newer one started", async () => {
     let release;
     const client = blockClient();
