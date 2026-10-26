@@ -21,9 +21,11 @@ import {
   addressTransactions,
   block,
   blockchainInfo,
+  doubleSpendProofs,
   fakeClient,
   grpcError,
   hexHash,
+  mempoolInfo,
   transaction,
   transactionResponse,
   unspentOutputs,
@@ -481,6 +483,11 @@ function deferred() {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// mempoolCells returns the home page mempool table's header and row texts.
+function mempoolCells(wrapper) {
+  return wrapper.findAll("#mempoolstats tr").wrappers.map((r) => r.findAll("th, td").wrappers.map((c) => c.text()));
+}
+
 function statusTexts(wrapper) {
   return wrapper.findAll("[role=status]").wrappers.map((s) => s.text());
 }
@@ -611,6 +618,56 @@ describe("BCHDExplorer.vue home page", () => {
     await wrapper.vm.getInfo();
     await settle(40);
     expect(wrapper.vm.recentBlocks[0].height).toBe(1001);
+  });
+
+  it("summarizes the mempool", async () => {
+    const proof = { proofHash: hexHash(0xd5), txid: TXID, outpointTxid: hexHash(0x111), vout: 1 };
+    const client = fakeClient({
+      getMempoolInfo: () => mempoolInfo(91, 61497),
+      getDoubleSpendProofs: () => doubleSpendProofs([proof, proof]),
+    });
+    const { wrapper } = mountExplorer({ client });
+    await settle();
+    expect(wrapper.find("#mempoolstats h2").text()).toBe("Mempool");
+    expect(mempoolCells(wrapper)).toEqual([
+      ["Unconfirmed Transactions", "Size", "Double Spend Proofs"],
+      ["91", "61.5 kB", "2"],
+    ]);
+
+    // Refreshed with the status poll.
+    client.getMempoolInfo = () => Promise.resolve(mempoolInfo(1, 200));
+    client.getDoubleSpendProofs = () => Promise.resolve(doubleSpendProofs([]));
+    await wrapper.vm.getInfo();
+    await settle();
+    expect(mempoolCells(wrapper)[1]).toEqual(["1", "200 B", "0"]);
+  });
+
+  it("leaves out what the node can't answer", async () => {
+    const client = fakeClient({
+      getMempoolInfo: () => mempoolInfo(5, 1000),
+      getDoubleSpendProofs: () => { throw grpcError(Code.Unavailable, "double spend proofs are disabled"); },
+    });
+    const { wrapper } = mountExplorer({ client });
+    await settle();
+    expect(mempoolCells(wrapper)).toEqual([["Unconfirmed Transactions", "Size"], ["5", "1 kB"]]);
+
+    client.getMempoolInfo = () => Promise.reject(grpcError(Code.ResourceExhausted, "busy"));
+    await wrapper.vm.getInfo();
+    await settle();
+    expect(wrapper.find("#mempoolstats").exists()).toBe(false);
+    // The rest of the home page is unaffected.
+    expect(wrapper.find(".info-result").text()).toMatch(/^Height:/);
+  });
+
+  it("shows mempool stats only on the home page", async () => {
+    const client = fakeClient({
+      getMempoolInfo: () => mempoolInfo(3, 600),
+      getBlock: (q) => block({ height: q.index }),
+    });
+    const { wrapper } = mountExplorer({ client, path: "/mainnet/block/5" });
+    await settle();
+    expect(wrapper.find("#mempoolstats").exists()).toBe(false);
+    expect(client.count("getMempoolInfo")).toBe(0);
   });
 
   it("hides recent blocks while a result is shown", async () => {

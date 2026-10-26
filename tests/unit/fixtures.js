@@ -190,6 +190,30 @@ export function addressTransactions({ confirmed = [], unconfirmed = [] }) {
   return res;
 }
 
+export function mempoolInfo(count, bytes) {
+  const res = new pb.GetMempoolInfoResponse();
+  res.setSize(count);
+  res.setBytes(bytes);
+  return res;
+}
+
+// doubleSpendProofs builds a GetDoubleSpendProofsResponse from
+// { proofHash, txid, outpointTxid, vout }.
+export function doubleSpendProofs(proofs = []) {
+  const res = new pb.GetDoubleSpendProofsResponse();
+  proofs.forEach((p) => {
+    const proof = new pb.DoubleSpendProof();
+    proof.setHash(hash(p.proofHash));
+    proof.setTransactionHash(hash(p.txid));
+    const outpoint = new pb.Transaction.Input.Outpoint();
+    outpoint.setHash(hash(p.outpointTxid));
+    outpoint.setIndex(p.vout || 0);
+    proof.setOutpoint(outpoint);
+    res.addProofs(proof);
+  });
+  return res;
+}
+
 export function dsproofScore(score) {
   const res = new pb.GetDoubleSpendProofScoreResponse();
   res.setScore(score);
@@ -217,6 +241,8 @@ export function fakeClient(handlers = {}) {
     getDoubleSpendProof: () =>
       Promise.reject(grpcError(NOT_FOUND, "double spend proof not found")),
     getDoubleSpendProofScore: () => dsproofScore(1),
+    getMempoolInfo: () => mempoolInfo(0, 0),
+    getDoubleSpendProofs: () => doubleSpendProofs([]),
   };
   const client = { calls };
   Object.keys(defaults).forEach((method) => {

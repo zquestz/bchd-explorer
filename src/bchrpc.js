@@ -55,6 +55,11 @@ export class BchrpcClient {
     return this.unary("getBlockchainInfo", new pb.GetBlockchainInfoRequest());
   }
 
+  // getMempoolInfo returns the mempool's transaction count and size.
+  getMempoolInfo() {
+    return this.unary("getMempoolInfo", new pb.GetMempoolInfoRequest());
+  }
+
   getBlockInfo({ index, hash, reversedHashOrder }) {
     const req = new pb.GetBlockInfoRequest();
     if (index !== null && index !== undefined) {
@@ -117,6 +122,14 @@ export class BchrpcClient {
     req.setTransactionHash(hashToBytes(hash, reversedHashOrder));
     req.setExcludeAncestors(excludeAncestors);
     return this.unary("getDoubleSpendProof", req);
+  }
+
+  // getDoubleSpendProofs lists the proofs for mempool transactions.
+  getDoubleSpendProofs() {
+    return this.unary(
+      "getDoubleSpendProofs",
+      new pb.GetDoubleSpendProofsRequest()
+    );
   }
 
   // getDoubleSpendProofScore rejects with GrpcCode.NotFound when the

@@ -85,6 +85,29 @@
           :network="network"
         />
       </div>
+      <div
+        class="container results"
+        id="mempoolstats"
+        v-if="isHome && mempoolStats"
+      >
+        <h2>Mempool</h2>
+        <table class="table is-bordered is-striped" align="center">
+          <thead>
+            <tr>
+              <th>Unconfirmed Transactions</th>
+              <th>Size</th>
+              <th v-if="mempoolStats.proofs !== null">Double Spend Proofs</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>{{ mempoolStats.count }}</td>
+              <td>{{ prettyBytes(mempoolStats.bytes) }}</td>
+              <td v-if="mempoolStats.proofs !== null">{{ mempoolStats.proofs }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
       <div class="container results" v-if="isHome && recentBlocks.length">
         <RecentBlocks :blocks="recentBlocks" :network="network" />
       </div>
@@ -194,6 +217,9 @@ export default {
       infoResult: " ",
       // The node's newest block, shown in the status line.
       tip: { height: null, hash: "" },
+      // { count, bytes, proofs } for the home page; proofs is null when the
+      // node can't list double spend proofs.
+      mempoolStats: null,
       recentBlocks: [],
       // The tip height recentBlocks was loaded for.
       recentBlocksTip: null,
@@ -296,6 +322,7 @@ export default {
         this.resetState();
         this.input = "";
         this.loadRecentBlocks();
+        this.loadMempoolStats();
         return;
       }
       this.input = input;
@@ -484,7 +511,32 @@ export default {
       this.resetState();
       this.input = "";
       this.loadRecentBlocks();
+      this.loadMempoolStats();
     },
+    // loadMempoolStats fetches the home page's mempool summary. Both calls
+    // are cheap; a node that can't list double spend proofs (disabled, or
+    // older than bchd 0.22.3) still shows the rest.
+    loadMempoolStats: async function () {
+      const client = this.grpc;
+      if (!client) {
+        return;
+      }
+      const [info, proofs] = await Promise.all([
+        client.getMempoolInfo().catch(() => null),
+        client
+          .getDoubleSpendProofs()
+          .then((res) => res.getProofsList().length)
+          .catch(() => null),
+      ]);
+      if (client !== this.grpc) {
+        return;
+      }
+      this.mempoolStats = info
+        ? { count: info.getSize(), bytes: info.getBytes(), proofs }
+        : null;
+    },
+
+    prettyBytes,
     // loadRecentBlocks fetches the newest blocks for the home page, unless
     // they were already fetched for the current tip.
     loadRecentBlocks: async function () {
@@ -1163,6 +1215,7 @@ export default {
       this.recentBlocks = [];
       this.recentBlocksTip = null;
       this.loadingRecent = false;
+      this.mempoolStats = null;
       const node = this.nodes.find((n) => n.url === this.selectedNetwork);
       this.network = node ? node.network : MAINNET;
       this.connectingTo = node ? node.name : this.selectedNetwork;
@@ -1210,6 +1263,8 @@ export default {
         };
         if (this.isHome) {
           this.loadRecentBlocks();
+          // Cheap, so refreshed with every status poll.
+          this.loadMempoolStats();
         }
       } catch (error) {
         // Don't update, could be transient failures.
