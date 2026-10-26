@@ -16,6 +16,12 @@
 
 <template>
   <div id="bchablock">
+    <nav class="block-nav">
+      <ResultLink v-if="blockData['height'] > 0" type="block" :value="blockData['height'] - 1" label="← Previous" :network="network" />
+      <span v-else class="disabled">← Previous</span>
+      <ResultLink v-if="blockData['next_block_hash']" type="block" :value="blockData['height'] + 1" label="Next →" :network="network" />
+      <span v-else class="disabled">Next →</span>
+    </nav>
     <table class="table is-bordered is-striped" align="center">
       <thead>
         <th colspan="2">{{block}}</th>
@@ -103,5 +109,15 @@ export default {
 <style scoped>
 .tx-index {
   width: 5em;
+}
+
+.block-nav {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5em;
+}
+
+.disabled {
+  color: #b5b5b5;
 }
 </style>

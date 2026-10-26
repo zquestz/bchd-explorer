@@ -26,7 +26,9 @@
       </div>
       <br />
       <div class="container">
-        <img class="logo" src="../assets/bchd-explorer.svg" />
+        <router-link to="/" class="logo-link" @click.native="goHome">
+          <img class="logo" src="../assets/bchd-explorer.svg" alt="BCHD Explorer" />
+        </router-link>
         <div class="field">
           <div class="control has-icons-left">
             <input
@@ -45,7 +47,8 @@
         </div>
       </div>
       <div class="info-result container has-text-centered info-result">
-        {{ infoResult }}
+        <template v-if="tip.hash">Height: <ResultLink type="block" :value="tip.height" :network="network" /> Block Hash: <ResultLink type="block" :value="tip.hash" :network="network" /></template>
+        <template v-else>{{ infoResult }}</template>
       </div>
       <div
         class="container results has-text-centered"
@@ -86,6 +89,7 @@ import bchaddr from "bchaddrjs-slp";
 import BCHAddress from "./BCHAddress.vue";
 import BCHBlock from "./BCHBlock.vue";
 import BCHTransaction from "./BCHTransaction.vue";
+import ResultLink from "./ResultLink.vue";
 import sb from "satoshi-bitcoin";
 import prettyBytes from "pretty-bytes";
 
@@ -128,11 +132,14 @@ export default {
     BCHAddress,
     BCHBlock,
     BCHTransaction,
+    ResultLink,
   },
   data: function () {
     return {
       result: "",
       infoResult: " ",
+      // The node's newest block, shown in the status line.
+      tip: { height: null, hash: "" },
       input: "",
       network: MAINNET,
       nodeIndexes: this.defaultNodeIndexes(),
@@ -338,6 +345,14 @@ export default {
     },
     determineNetwork: function () {
       return this.network;
+    },
+    // goHome clears the page when the logo is clicked. On another route the
+    // route watcher does the same; on "/" the route doesn't change.
+    goHome: function () {
+      this.searchToken++;
+      this.currentQuery = undefined;
+      this.resetState();
+      this.input = "";
     },
 
     populateAddressData: async function (addr, token) {
@@ -893,6 +908,7 @@ export default {
       this.searchToken++;
       this.currentQuery = undefined;
       this.infoResult = "Not connected (select another server)";
+      this.tip = { height: null, hash: "" };
       const node = this.nodes.find((n) => n.url === this.selectedNetwork);
       this.network = node ? node.network : MAINNET;
       this.nodeIndexes = this.defaultNodeIndexes();
@@ -923,10 +939,10 @@ export default {
           addr: blockInfo.getAddrIndex(),
           slp: blockInfo.getSlpIndex(),
         };
-        var blockHash = this.convertHash(blockInfo.getBestBlockHash());
-        var blockHeight = blockInfo.getBestHeight();
-        this.infoResult =
-          "Height: " + blockHeight + " Block Hash: " + blockHash;
+        this.tip = {
+          height: blockInfo.getBestHeight(),
+          hash: this.convertHash(blockInfo.getBestBlockHash()),
+        };
       } catch (error) {
         // Don't update, could be transient failures.
       }
@@ -1024,6 +1040,13 @@ export default {
   margin-left: auto;
   display: block;
   margin-bottom: 1em;
+}
+
+/* Only the logo itself is clickable, not the whole row. */
+.logo-link {
+  display: block;
+  width: fit-content;
+  margin: 0 auto;
 }
 
 .info-result {
