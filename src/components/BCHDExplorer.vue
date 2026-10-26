@@ -1420,7 +1420,7 @@ export default {
           // Cheap, so refreshed with every status poll.
           this.loadMempoolStats();
         }
-      } catch (error) {
+      } catch {
         // Don't update, could be transient failures.
       }
     },
