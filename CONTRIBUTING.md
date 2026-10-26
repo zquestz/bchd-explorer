@@ -1,13 +1,5 @@
 # Contributing to bchd-explorer
 
-## Code of Conduct
-
-All interactions with this project follow our [Code of Conduct][code-of-conduct].
-By participating, you are expected to honor this code. Violators can be banned
-from further participation in this project, or potentially all Coinbase projects.
-
-[code-of-conduct]: https://github.com/coinbase/code-of-conduct
-
 ## Bug Reports
 
 * Ensure your issue [has not already been reported][1]. It may already be fixed!
@@ -42,12 +34,10 @@ The best way to see a feature added, however, is to submit a pull request.
 
 ## Support Requests
 
-For security reasons, any communication referencing support tickets for Coinbase
-products will be ignored. The request will have its content redacted and will
-be locked to prevent further discussion.
+This explorer only displays data from a bchd node. Problems with the node itself
+(sync, indexes, gRPC errors) belong in the [bchd issue tracker][3]. Problems with
+the explorer belong in [this repository's issues][1].
 
-All support requests must be made via [our support team][3].
-
-[1]: https://github.com/coinbase/bchd-explorer/issues
+[1]: https://github.com/zquestz/bchd-explorer/issues
 [2]: https://medium.com/brigade-engineering/the-secrets-to-great-commit-messages-106fc0a92a25
-[3]: https://support.coinbase.com/customer/en/portal/articles/2288496-how-can-i-contact-coinbase-support-
+[3]: https://github.com/gcash/bchd/issues

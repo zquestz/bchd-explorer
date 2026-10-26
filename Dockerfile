@@ -1,4 +1,5 @@
 # Copyright 2020 Coinbase, Inc.
+# Copyright 2026 Josh Ellithorpe
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +14,8 @@
 # limitations under the License.
 
 # build stage
-FROM node:lts-alpine AS build-stage
+# Pinned to match the newest Node in CI, so the image doesn't jump majors when lts moves.
+FROM node:24-alpine AS build-stage
 WORKDIR /app
 COPY package*.json ./
 # The bchrpc bindings are a local package that npm ci installs.
