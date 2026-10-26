@@ -34,6 +34,28 @@ export default defineConfig({
     commonjsOptions: {
       include: [/node_modules/, /vendor\/bchrpc-pb/],
     },
+    rolldownOptions: {
+      output: {
+        // Libraries change less often than the app, so they get their own
+        // chunks that browsers keep cached across deploys. The gRPC bindings
+        // are most of the download (about 375 kB), so they're split from
+        // the rest.
+        codeSplitting: {
+          groups: [
+            {
+              name: "bchrpc",
+              test: /[\\/]vendor[\\/]bchrpc-pb[\\/]|[\\/]node_modules[\\/](google-protobuf|@improbable-eng)[\\/]/,
+              priority: 2,
+            },
+            {
+              name: "vendor",
+              test: /[\\/]node_modules[\\/]/,
+              priority: 1,
+            },
+          ],
+        },
+      },
+    },
   },
   test: {
     environment: "jsdom",
