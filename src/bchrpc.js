@@ -15,12 +15,13 @@
  */
 
 // Promise based client for the bchd gRPC-Web API, built on the bindings bchd
-// publishes in bchrpc/pb-js (see src/pb/README.md). It keeps the method names
-// and arguments of the grpc-bchrpc-web GrpcClient it replaces.
+// publishes in bchrpc/pb-js (see vendor/bchrpc-pb/README.md). It keeps the
+// method names and arguments of the grpc-bchrpc-web GrpcClient it replaces.
 
 import { grpc } from "@improbable-eng/grpc-web";
-import * as pb from "./pb/bchrpc_pb";
-import { bchrpcClient } from "./pb/bchrpc_pb_service";
+import * as pb from "bchrpc-pb/bchrpc_pb";
+import { bchrpcClient } from "bchrpc-pb/bchrpc_pb_service";
+import { fromHex } from "./hex";
 
 export { pb };
 export const GrpcCode = grpc.Code;
@@ -28,7 +29,7 @@ export const GrpcCode = grpc.Code;
 // hashToBytes converts a hex hash to bytes. Hashes are displayed big-endian
 // but sent little-endian, so displayed hashes need reversedHashOrder.
 function hashToBytes(hash, reversedHashOrder) {
-  const bytes = Uint8Array.from(Buffer.from(hash, "hex"));
+  const bytes = fromHex(hash);
   return reversedHashOrder ? bytes.reverse() : bytes;
 }
 

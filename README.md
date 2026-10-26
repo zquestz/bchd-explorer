@@ -7,17 +7,22 @@ Simple block explorer for the BCHD gRPC API with SLP and Cash Tokens support.
 npm install
 ```
 
-### Compiles and hot-reloads for development
+### Runs a development server with hot reload
 ```
-npm run serve
+npm run dev
 ```
 
-### Compiles and minifies for production
+### Builds for production into `dist/`
 ```
 npm run build
 ```
 
-### Lints and fixes files
+### Serves the production build locally
+```
+npm run preview
+```
+
+### Lints files
 ```
 npm run lint
 ```

@@ -258,6 +258,7 @@
 <script>
 import ResultLink from "./ResultLink.vue";
 import { formatTimeAndAge } from "../format";
+import { toHex } from "../hex";
 export default {
   name: "bchtransaction",
   props: ["transaction", "transactionData", "network"],
@@ -304,9 +305,7 @@ export default {
         .reverse()
         .join("");
     },
-    viewScript: function(bytes) {
-      return Buffer.from(bytes).toString("hex");
-    }
+    viewScript: toHex
   }
 };
 </script>

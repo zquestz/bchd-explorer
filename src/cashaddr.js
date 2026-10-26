@@ -14,15 +14,14 @@
  * limitations under the License.
  */
 
-// Conversion between standard and token-aware (CashTokens) cashaddr forms.
-// bchaddrjs-slp only knows the standard P2PKH and P2SH types, so token-aware
-// addresses are converted here before it validates them.
+// The cashaddr format (bitcoincash:..., simpleledger:...), including the
+// token-aware (CashTokens) forms.
 
 const CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
-const PREFIXES = ["bitcoincash", "bchtest", "bchreg"];
-// The 40-bit checksum generators as [high 8 bits, low 32 bits]. The
-// toolchain (webpack 4, ESLint 5) predates BigInt, so checksums are computed
-// in two halves.
+// Prefixes tried for an address given without one.
+const DEFAULT_PREFIXES = ["bitcoincash", "bchtest", "regtest", "bchreg"];
+// The 40-bit checksum generators as [high 8 bits, low 32 bits], computed in
+// two 32-bit halves.
 const GENERATORS = [
   [0x98, 0xf2bc8e61],
   [0x79, 0xb76d99e2],
@@ -31,8 +30,10 @@ const GENERATORS = [
   [0x1e, 0x4f43e470],
 ];
 // Version byte type bits: 0x00 P2PKH, 0x08 P2SH, plus 0x10 when token-aware.
+// The low three bits give the hash size.
 const TYPE_MASK = 0x78;
 const TOKEN_AWARE_BIT = 0x10;
+const HASH_SIZES = [20, 24, 28, 32, 40, 48, 56, 64];
 
 // polymod returns the cashaddr checksum of values as a Number (40 bits).
 function polymod(values) {
@@ -74,9 +75,9 @@ function convertBits(data, from, to, pad) {
   return out;
 }
 
-// decode returns { prefix, version, hash } for a valid cashaddr, with or
-// without its prefix, or null.
-function decode(address) {
+// decodeCashAddress returns { prefix, version, hash } for a valid cashaddr,
+// or null. An address without a prefix is tried with each of prefixes.
+export function decodeCashAddress(address, prefixes = DEFAULT_PREFIXES) {
   if (typeof address !== "string" || address.length > 130) {
     return null;
   }
@@ -93,21 +94,23 @@ function decode(address) {
   if (words.length < 9 || words.includes(-1)) {
     return null;
   }
-  const prefixes = parts.length === 2 ? [parts[0]] : PREFIXES;
-  for (const prefix of prefixes) {
+  for (const prefix of parts.length === 2 ? [parts[0]] : prefixes) {
     if (polymod([...prefixWords(prefix), 0, ...words]) !== 0) {
       continue;
     }
     const bytes = convertBits(words.slice(0, -8), 5, 8, false);
-    if (bytes.length < 21) {
+    const version = bytes[0];
+    const hash = bytes.slice(1);
+    if (version & 0x80 || hash.length !== HASH_SIZES[version & 0x07]) {
       return null;
     }
-    return { prefix, version: bytes[0], hash: bytes.slice(1) };
+    return { prefix, version, hash };
   }
   return null;
 }
 
-function encode(prefix, version, hash) {
+// encodeCashAddress encodes a version byte and hash with prefix.
+export function encodeCashAddress(prefix, version, hash) {
   const payload = convertBits([version, ...hash], 8, 5, true);
   const checksum = polymod([
     ...prefixWords(prefix),
@@ -136,7 +139,7 @@ function encode(prefix, version, hash) {
 // fromTokenAware returns the standard cashaddr for a token-aware address, or
 // null when address is not a valid token-aware cashaddr.
 export function fromTokenAware(address) {
-  const decoded = decode(address);
+  const decoded = decodeCashAddress(address);
   if (!decoded || !(decoded.version & TOKEN_AWARE_BIT)) {
     return null;
   }
@@ -144,7 +147,7 @@ export function fromTokenAware(address) {
   if (type !== 0x10 && type !== 0x18) {
     return null;
   }
-  return encode(
+  return encodeCashAddress(
     decoded.prefix,
     decoded.version & ~TOKEN_AWARE_BIT,
     decoded.hash
@@ -154,7 +157,7 @@ export function fromTokenAware(address) {
 // toTokenAware returns the token-aware form of a standard P2PKH or P2SH
 // cashaddr, or null when address is not one.
 export function toTokenAware(address) {
-  const decoded = decode(address);
+  const decoded = decodeCashAddress(address);
   if (!decoded) {
     return null;
   }
@@ -162,7 +165,7 @@ export function toTokenAware(address) {
   if (type !== 0x00 && type !== 0x08) {
     return null;
   }
-  return encode(
+  return encodeCashAddress(
     decoded.prefix,
     decoded.version | TOKEN_AWARE_BIT,
     decoded.hash

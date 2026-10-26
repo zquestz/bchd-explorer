@@ -149,8 +149,9 @@
 <script>
 import Big from "big.js";
 import { BchrpcClient, GrpcCode, pb } from "../bchrpc";
+import { parseAddress } from "../address";
 import { fromTokenAware, toTokenAware } from "../cashaddr";
-import bchaddr from "bchaddrjs-slp";
+import { toHex, toUtf8 } from "../hex";
 import BCHAddress from "./BCHAddress.vue";
 import BCHBlock from "./BCHBlock.vue";
 import BCHTransaction from "./BCHTransaction.vue";
@@ -461,11 +462,10 @@ export default {
       // The route watcher skips the route pushed below for this input.
       this.currentQuery = input;
       // Token-aware addresses (z..., r...) are looked up by their standard
-      // form, which bchaddrjs-slp understands and the node indexes by.
-      const address = fromTokenAware(input) || input;
-      if (bchaddr.isValidAddress(address)) {
-        var addr = bchaddr.toCashAddress(address);
-        await this.populateAddressData(addr, token);
+      // form, which the node indexes by.
+      const address = parseAddress(fromTokenAware(input) || input);
+      if (address) {
+        await this.populateAddressData(address, token);
         if (this.isStale(token)) {
           return;
         }
@@ -736,7 +736,9 @@ export default {
       this.recentBlocks = Object.freeze(loaded);
     },
 
-    populateAddressData: async function (addr, token) {
+    // populateAddressData looks up an address, given as parseAddress returns.
+    populateAddressData: async function (parsed, token) {
+      const addr = parsed.cash;
       try {
         const utxoQuery = {
           address: addr,
@@ -768,9 +770,9 @@ export default {
         this.addressData["utxos"] = addrUtxoResult.getOutputsList().length;
         this.addressData["satoshis"] = total;
         this.addressData["balance"] = sb.toBitcoin(total);
-        this.addressData["legacy"] = bchaddr.toLegacyAddress(addr);
-        this.addressData["cash"] = bchaddr.toCashAddress(addr);
-        this.addressData["slp"] = bchaddr.toSlpAddress(addr);
+        this.addressData["legacy"] = parsed.legacy;
+        this.addressData["cash"] = parsed.cash;
+        this.addressData["slp"] = parsed.slp;
         this.addressData["token_aware"] =
           toTokenAware(this.addressData["cash"]) || "";
         const confirmed = addrResult.getConfirmedTransactionsList().length;
@@ -781,14 +783,12 @@ export default {
         const _tokens = new Map();
         const tokenMetadata = new Map();
         addrUtxoResult.getTokenMetadataList().forEach((tm) => {
-          const _id = Buffer.from(tm.getTokenId_asU8()).toString("hex");
+          const _id = toHex(tm.getTokenId_asU8());
           const _tmObj = { token_id: _id, name: "", ticker: "" };
           tokenMetadata.set(_id, _tmObj);
           if (tm.hasV1Fungible()) {
             _tmObj.name = tm.getV1Fungible().getTokenName();
-            _tmObj.ticker = Buffer.from(
-              tm.getV1Fungible().getTokenTicker()
-            ).toString("utf8");
+            _tmObj.ticker = tm.getV1Fungible().getTokenTicker();
             _tmObj.document_url =
               tm.getV1Fungible().getTokenDocumentUrl() !== ""
                 ? tm.getV1Fungible().getTokenDocumentUrl()
@@ -797,9 +797,9 @@ export default {
               tm.getV1Fungible().getTokenDocumentHash() !== ""
                 ? tm.getV1Fungible().getTokenDocumentHash()
                 : "NA";
-            _tmObj.mint_baton_txid = Buffer.from(
+            _tmObj.mint_baton_txid = toHex(
               tm.getV1Fungible().getMintBatonHash_asU8().slice().reverse()
-            ).toString("hex");
+            );
             _tmObj.mint_baton_vout = tm.getV1Fungible().getMintBatonVout();
           } else if (tm.hasV1Nft1Group()) {
             _tmObj.name = tm.getV1Nft1Group().getTokenName();
@@ -813,9 +813,9 @@ export default {
               .getTokenDocumentHash_asB64()
               ? tm.getV1Nft1Group().getTokenDocumentHash()
               : "NA";
-            _tmObj.mint_baton_txid = Buffer.from(
+            _tmObj.mint_baton_txid = toHex(
               tm.getV1Nft1Group().getMintBatonHash_asU8().slice().reverse()
-            ).toString("hex");
+            );
             _tmObj.mint_baton_vout = tm.getV1Nft1Group().getMintBatonVout();
           } else if (tm.hasV1Nft1Child()) {
             _tmObj.name = tm.getV1Nft1Child().getTokenName();
@@ -827,19 +827,15 @@ export default {
             _tmObj.document_hash = tm
               .getV1Nft1Child()
               .getTokenDocumentHash_asB64()
-              ? Buffer.from(
-                  tm.getV1Nft1Child().getTokenDocumentHash_asU8()
-                ).toString("utf8")
+              ? toUtf8(tm.getV1Nft1Child().getTokenDocumentHash_asU8())
               : "NA";
-            _tmObj.nft_group_id = Buffer.from(
-              tm.getV1Nft1Child().getGroupId_asU8()
-            ).toString("hex");
+            _tmObj.nft_group_id = toHex(tm.getV1Nft1Child().getGroupId_asU8());
           }
         });
         addrUtxoResult.getOutputsList().forEach(function (a) {
           if (a.getSlpToken()) {
             const tok = a.getSlpToken();
-            const tokenID = Buffer.from(tok.getTokenId_asU8()).toString("hex");
+            const tokenID = toHex(tok.getTokenId_asU8());
             if (_tokens.has(tokenID)) {
               const _tok = _tokens.get(tokenID);
               _tok.balance = _tok.balance.add(tok.getAmount());
@@ -1000,7 +996,7 @@ export default {
         // set token metadata for valid slp transaction
         if (this.transactionData["slp_valid"] && txResult.getTokenMetadata()) {
           const tm = txResult.getTokenMetadata();
-          const _id = Buffer.from(tm.getTokenId_asU8()).toString("hex");
+          const _id = toHex(tm.getTokenId_asU8());
           const _tmObj = { token_id: _id, name: "", ticker: "" };
           _tmObj.token_type = tm.getTokenType();
           if (tm.hasV1Fungible()) {
@@ -1012,9 +1008,7 @@ export default {
           } else if (tm.hasV1Nft1Child()) {
             _tmObj.name = tm.getV1Nft1Child().getTokenName();
             _tmObj.ticker = tm.getV1Nft1Child().getTokenTicker();
-            _tmObj.nft_group_id = Buffer.from(
-              tm.getV1Nft1Child().getGroupId()
-            ).toString("hex");
+            _tmObj.nft_group_id = toHex(tm.getV1Nft1Child().getGroupId_asU8());
           }
           if (_tmObj.name === "") {
             _tmObj.name = "NA";
@@ -1038,9 +1032,7 @@ export default {
               );
               i.token.isMintBaton = tok.getIsMintBaton();
               i.token.decimals = tok.getDecimals();
-              i.token.token_id = Buffer.from(tok.getTokenId_asU8()).toString(
-                "hex"
-              );
+              i.token.token_id = toHex(tok.getTokenId_asU8());
               i.token.slp_action = tok.getSlpAction();
               i.token.token_type = tok.getTokenType();
               if (dat.token_metadata) {
@@ -1215,7 +1207,7 @@ export default {
         let slpLabel = "";
         if (slp) {
           const tm = tokenMetadata.get(
-            Buffer.from(slp.getTokenId_asU8()).toString("hex")
+            toHex(slp.getTokenId_asU8())
           );
           slpLabel = slp.getIsMintBaton()
             ? "SLP mint baton"
@@ -1258,7 +1250,7 @@ export default {
           capability:
             CASHTOKEN_CAPABILITIES[bitfield & CASHTOKEN_CAPABILITY_MASK] ||
             "unknown",
-          commitment: Buffer.from(ct.getCommitment_asU8()).toString("hex"),
+          commitment: toHex(ct.getCommitment_asU8()),
         };
       }
       return token;

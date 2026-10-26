@@ -21,12 +21,9 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
-      # Install scripts are skipped: the only one the build or tests could
-      # use compiles deasync, which the tests never load and which has no
-      # prebuilt binary for Node 24.
+      # Nothing the build or tests use needs an install script.
       - run: npm ci --ignore-scripts
-      # npm run lint fixes problems instead of failing on them.
-      - run: npx vue-cli-service lint --no-fix
+      - run: npm run lint
       - run: npm test
       - run: npm run build
 

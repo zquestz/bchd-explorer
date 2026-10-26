@@ -16,6 +16,8 @@
 FROM node:lts-alpine AS build-stage
 WORKDIR /app
 COPY package*.json ./
+# The bchrpc bindings are a local package that npm ci installs.
+COPY vendor ./vendor
 RUN npm ci --ignore-scripts
 COPY . .
 RUN npm run build

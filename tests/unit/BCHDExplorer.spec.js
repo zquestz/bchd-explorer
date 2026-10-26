@@ -53,13 +53,18 @@ function mountExplorer({ client = fakeClient(), path = "/" } = {}) {
   localVue.use(VueRouter);
   const router = new VueRouter({ mode: "abstract", routes: ROUTES });
   router.push(path);
-  const wrapper = mount(BCHDExplorer, {
+  // The explorer gets the fake node through a copy of the component whose
+  // newGrpcClient returns it.
+  const component = {
+    ...BCHDExplorer,
+    methods: { ...BCHDExplorer.methods, newGrpcClient: () => client },
+  };
+  const wrapper = mount(component, {
     localVue,
     router,
     data() {
       return { getInfoBar: false };
     },
-    methods: { newGrpcClient: () => client },
   });
   return { wrapper, client, router };
 }

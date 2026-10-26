@@ -1,0 +1,337 @@
+{
+  "generatedWith": "bchaddrjs-slp 0.2.14 and cashaddrjs-slp 0.2.12",
+  "vectors": [
+    {
+      "cash": "bitcoincash:qqj5gcuz58qdllsa83dh4xdc6lmp2dznwghglm9ryz",
+      "legacy": "14Q3vq4tL6JwvrAHfgHP7vMv3ZCNwtZM54",
+      "slp": "simpleledger:qqj5gcuz58qdllsa83dh4xdc6lmp2dznwgmn5qsr6u"
+    },
+    {
+      "cash": "bitcoincash:qqm92aynktglqrewf4kgh2kfaqrjv3tysv53at0uus",
+      "legacy": "15xHruMWF6xzzH9o1PG4gwFk4oqDCpF88w",
+      "slp": "simpleledger:qqm92aynktglqrewf4kgh2kfaqrjv3tysvc2ks6uzw"
+    },
+    {
+      "cash": "bitcoincash:pqj5gcuz58qdllsa83dh4xdc6lmp2dznwgqdz5zqll",
+      "legacy": "3564rNZKszdL21rinmwyYYirC5V6ZBz9pf",
+      "slp": "simpleledger:pqj5gcuz58qdllsa83dh4xdc6lmp2dznwgvkf0hqpp"
+    },
+    {
+      "cash": "bitcoincash:pqm92aynktglqrewf4kgh2kfaqrjv3tysvr5qygl8d",
+      "legacy": "36eJnSqwo1HP5SrE8Uvf7ZcgDL7vhZ8FSb",
+      "slp": "simpleledger:pqm92aynktglqrewf4kgh2kfaqrjv3tysv00tlalen"
+    },
+    {
+      "cash": "bitcoincash:pdfh9ydselhq6tztd2y633lxq5jyxc5p5zlaalgu8dd8nx9h6m63gxwx68pfe",
+      "legacy": "BMUSNGNUru7K4o3Rq9wMex25QzQ51M3VisDY7tTz4QhWxSSK21",
+      "slp": "simpleledger:pdfh9ydselhq6tztd2y633lxq5jyxc5p5zlaalgu8dd8nx9h6m63ghf70gt0x"
+    },
+    {
+      "cash": "bchtest:qqj5gcuz58qdllsa83dh4xdc6lmp2dznwgn6mu85r7",
+      "legacy": "miv1Dt9s97kChxduPFFkwqaEuYo5sPyGxw",
+      "slp": "slptest:qqj5gcuz58qdllsa83dh4xdc6lmp2dznwggwu8ar3r"
+    },
+    {
+      "cash": "bchtest:qqm92aynktglqrewf4kgh2kfaqrjv3tysvsrevdtmv",
+      "legacy": "mkUF9xSV48QFmPdQixESWrU4voRv7YKtM1",
+      "slp": "slptest:qqm92aynktglqrewf4kgh2kfaqrjv3tysvth7hhuf3"
+    },
+    {
+      "cash": "bchtest:pqj5gcuz58qdllsa83dh4xdc6lmp2dznwgylxnqhcr",
+      "legacy": "2MveGv7VMVT8gDoVGTuZrAVi7QRhGMV7uis",
+      "slp": "slptest:pqj5gcuz58qdllsa83dh4xdc6lmp2dznwgltpg6q27"
+    },
+    {
+      "cash": "bchtest:pqm92aynktglqrewf4kgh2kfaqrjv3tysv8xyr2gq3",
+      "legacy": "2MxCWrBmyQTnjHEUmocYXjWbwRgL6Sxre7m",
+      "slp": "slptest:pqm92aynktglqrewf4kgh2kfaqrjv3tysvujrcsljv"
+    },
+    {
+      "cash": "bchtest:pdfh9ydselhq6tztd2y633lxq5jyxc5p5zlaalgu8dd8nx9h6m63g9fhyljut",
+      "legacy": "7adf8ezUF85N4knkaYhnXuTvzCcZEWJHnoPn8jGgrDgmmkXfbfa",
+      "slp": "slptest:pdfh9ydselhq6tztd2y633lxq5jyxc5p5zlaalgu8dd8nx9h6m63g5y43lg85"
+    }
+  ],
+  "inputs": [
+    [
+      "bitcoincash:qqj5gcuz58qdllsa83dh4xdc6lmp2dznwghglm9ryz",
+      "bitcoincash:qqj5gcuz58qdllsa83dh4xdc6lmp2dznwghglm9ryz"
+    ],
+    [
+      "qqj5gcuz58qdllsa83dh4xdc6lmp2dznwghglm9ryz",
+      "bitcoincash:qqj5gcuz58qdllsa83dh4xdc6lmp2dznwghglm9ryz"
+    ],
+    [
+      "BITCOINCASH:QQJ5GCUZ58QDLLSA83DH4XDC6LMP2DZNWGHGLM9RYZ",
+      "bitcoincash:qqj5gcuz58qdllsa83dh4xdc6lmp2dznwghglm9ryz"
+    ],
+    [
+      "simpleledger:qqj5gcuz58qdllsa83dh4xdc6lmp2dznwgmn5qsr6u",
+      "bitcoincash:qqj5gcuz58qdllsa83dh4xdc6lmp2dznwghglm9ryz"
+    ],
+    [
+      "qqj5gcuz58qdllsa83dh4xdc6lmp2dznwgmn5qsr6u",
+      "bitcoincash:qqj5gcuz58qdllsa83dh4xdc6lmp2dznwghglm9ryz"
+    ],
+    [
+      "14Q3vq4tL6JwvrAHfgHP7vMv3ZCNwtZM54",
+      "bitcoincash:qqj5gcuz58qdllsa83dh4xdc6lmp2dznwghglm9ryz"
+    ],
+    [
+      "bitcoincash:qqm92aynktglqrewf4kgh2kfaqrjv3tysv53at0uus",
+      "bitcoincash:qqm92aynktglqrewf4kgh2kfaqrjv3tysv53at0uus"
+    ],
+    [
+      "qqm92aynktglqrewf4kgh2kfaqrjv3tysv53at0uus",
+      "bitcoincash:qqm92aynktglqrewf4kgh2kfaqrjv3tysv53at0uus"
+    ],
+    [
+      "BITCOINCASH:QQM92AYNKTGLQREWF4KGH2KFAQRJV3TYSV53AT0UUS",
+      "bitcoincash:qqm92aynktglqrewf4kgh2kfaqrjv3tysv53at0uus"
+    ],
+    [
+      "simpleledger:qqm92aynktglqrewf4kgh2kfaqrjv3tysvc2ks6uzw",
+      "bitcoincash:qqm92aynktglqrewf4kgh2kfaqrjv3tysv53at0uus"
+    ],
+    [
+      "qqm92aynktglqrewf4kgh2kfaqrjv3tysvc2ks6uzw",
+      "bitcoincash:qqm92aynktglqrewf4kgh2kfaqrjv3tysv53at0uus"
+    ],
+    [
+      "15xHruMWF6xzzH9o1PG4gwFk4oqDCpF88w",
+      "bitcoincash:qqm92aynktglqrewf4kgh2kfaqrjv3tysv53at0uus"
+    ],
+    [
+      "bitcoincash:pqj5gcuz58qdllsa83dh4xdc6lmp2dznwgqdz5zqll",
+      "bitcoincash:pqj5gcuz58qdllsa83dh4xdc6lmp2dznwgqdz5zqll"
+    ],
+    [
+      "pqj5gcuz58qdllsa83dh4xdc6lmp2dznwgqdz5zqll",
+      "bitcoincash:pqj5gcuz58qdllsa83dh4xdc6lmp2dznwgqdz5zqll"
+    ],
+    [
+      "BITCOINCASH:PQJ5GCUZ58QDLLSA83DH4XDC6LMP2DZNWGQDZ5ZQLL",
+      "bitcoincash:pqj5gcuz58qdllsa83dh4xdc6lmp2dznwgqdz5zqll"
+    ],
+    [
+      "simpleledger:pqj5gcuz58qdllsa83dh4xdc6lmp2dznwgvkf0hqpp",
+      "bitcoincash:pqj5gcuz58qdllsa83dh4xdc6lmp2dznwgqdz5zqll"
+    ],
+    [
+      "pqj5gcuz58qdllsa83dh4xdc6lmp2dznwgvkf0hqpp",
+      "bitcoincash:pqj5gcuz58qdllsa83dh4xdc6lmp2dznwgqdz5zqll"
+    ],
+    [
+      "3564rNZKszdL21rinmwyYYirC5V6ZBz9pf",
+      "bitcoincash:pqj5gcuz58qdllsa83dh4xdc6lmp2dznwgqdz5zqll"
+    ],
+    [
+      "bitcoincash:pqm92aynktglqrewf4kgh2kfaqrjv3tysvr5qygl8d",
+      "bitcoincash:pqm92aynktglqrewf4kgh2kfaqrjv3tysvr5qygl8d"
+    ],
+    [
+      "pqm92aynktglqrewf4kgh2kfaqrjv3tysvr5qygl8d",
+      "bitcoincash:pqm92aynktglqrewf4kgh2kfaqrjv3tysvr5qygl8d"
+    ],
+    [
+      "BITCOINCASH:PQM92AYNKTGLQREWF4KGH2KFAQRJV3TYSVR5QYGL8D",
+      "bitcoincash:pqm92aynktglqrewf4kgh2kfaqrjv3tysvr5qygl8d"
+    ],
+    [
+      "simpleledger:pqm92aynktglqrewf4kgh2kfaqrjv3tysv00tlalen",
+      "bitcoincash:pqm92aynktglqrewf4kgh2kfaqrjv3tysvr5qygl8d"
+    ],
+    [
+      "pqm92aynktglqrewf4kgh2kfaqrjv3tysv00tlalen",
+      "bitcoincash:pqm92aynktglqrewf4kgh2kfaqrjv3tysvr5qygl8d"
+    ],
+    [
+      "36eJnSqwo1HP5SrE8Uvf7ZcgDL7vhZ8FSb",
+      "bitcoincash:pqm92aynktglqrewf4kgh2kfaqrjv3tysvr5qygl8d"
+    ],
+    [
+      "bitcoincash:pdfh9ydselhq6tztd2y633lxq5jyxc5p5zlaalgu8dd8nx9h6m63gxwx68pfe",
+      "bitcoincash:pdfh9ydselhq6tztd2y633lxq5jyxc5p5zlaalgu8dd8nx9h6m63gxwx68pfe"
+    ],
+    [
+      "pdfh9ydselhq6tztd2y633lxq5jyxc5p5zlaalgu8dd8nx9h6m63gxwx68pfe",
+      "bitcoincash:pdfh9ydselhq6tztd2y633lxq5jyxc5p5zlaalgu8dd8nx9h6m63gxwx68pfe"
+    ],
+    [
+      "BITCOINCASH:PDFH9YDSELHQ6TZTD2Y633LXQ5JYXC5P5ZLAALGU8DD8NX9H6M63GXWX68PFE",
+      "bitcoincash:pdfh9ydselhq6tztd2y633lxq5jyxc5p5zlaalgu8dd8nx9h6m63gxwx68pfe"
+    ],
+    [
+      "simpleledger:pdfh9ydselhq6tztd2y633lxq5jyxc5p5zlaalgu8dd8nx9h6m63ghf70gt0x",
+      "bitcoincash:pdfh9ydselhq6tztd2y633lxq5jyxc5p5zlaalgu8dd8nx9h6m63gxwx68pfe"
+    ],
+    [
+      "pdfh9ydselhq6tztd2y633lxq5jyxc5p5zlaalgu8dd8nx9h6m63ghf70gt0x",
+      "bitcoincash:pdfh9ydselhq6tztd2y633lxq5jyxc5p5zlaalgu8dd8nx9h6m63gxwx68pfe"
+    ],
+    [
+      "BMUSNGNUru7K4o3Rq9wMex25QzQ51M3VisDY7tTz4QhWxSSK21",
+      null
+    ],
+    [
+      "bchtest:qqj5gcuz58qdllsa83dh4xdc6lmp2dznwgn6mu85r7",
+      "bchtest:qqj5gcuz58qdllsa83dh4xdc6lmp2dznwgn6mu85r7"
+    ],
+    [
+      "qqj5gcuz58qdllsa83dh4xdc6lmp2dznwgn6mu85r7",
+      "bchtest:qqj5gcuz58qdllsa83dh4xdc6lmp2dznwgn6mu85r7"
+    ],
+    [
+      "BCHTEST:QQJ5GCUZ58QDLLSA83DH4XDC6LMP2DZNWGN6MU85R7",
+      "bchtest:qqj5gcuz58qdllsa83dh4xdc6lmp2dznwgn6mu85r7"
+    ],
+    [
+      "slptest:qqj5gcuz58qdllsa83dh4xdc6lmp2dznwggwu8ar3r",
+      "bchtest:qqj5gcuz58qdllsa83dh4xdc6lmp2dznwgn6mu85r7"
+    ],
+    [
+      "qqj5gcuz58qdllsa83dh4xdc6lmp2dznwggwu8ar3r",
+      "bchtest:qqj5gcuz58qdllsa83dh4xdc6lmp2dznwgn6mu85r7"
+    ],
+    [
+      "miv1Dt9s97kChxduPFFkwqaEuYo5sPyGxw",
+      "bchtest:qqj5gcuz58qdllsa83dh4xdc6lmp2dznwgn6mu85r7"
+    ],
+    [
+      "bchtest:qqm92aynktglqrewf4kgh2kfaqrjv3tysvsrevdtmv",
+      "bchtest:qqm92aynktglqrewf4kgh2kfaqrjv3tysvsrevdtmv"
+    ],
+    [
+      "qqm92aynktglqrewf4kgh2kfaqrjv3tysvsrevdtmv",
+      "bchtest:qqm92aynktglqrewf4kgh2kfaqrjv3tysvsrevdtmv"
+    ],
+    [
+      "BCHTEST:QQM92AYNKTGLQREWF4KGH2KFAQRJV3TYSVSREVDTMV",
+      "bchtest:qqm92aynktglqrewf4kgh2kfaqrjv3tysvsrevdtmv"
+    ],
+    [
+      "slptest:qqm92aynktglqrewf4kgh2kfaqrjv3tysvth7hhuf3",
+      "bchtest:qqm92aynktglqrewf4kgh2kfaqrjv3tysvsrevdtmv"
+    ],
+    [
+      "qqm92aynktglqrewf4kgh2kfaqrjv3tysvth7hhuf3",
+      "bchtest:qqm92aynktglqrewf4kgh2kfaqrjv3tysvsrevdtmv"
+    ],
+    [
+      "mkUF9xSV48QFmPdQixESWrU4voRv7YKtM1",
+      "bchtest:qqm92aynktglqrewf4kgh2kfaqrjv3tysvsrevdtmv"
+    ],
+    [
+      "bchtest:pqj5gcuz58qdllsa83dh4xdc6lmp2dznwgylxnqhcr",
+      "bchtest:pqj5gcuz58qdllsa83dh4xdc6lmp2dznwgylxnqhcr"
+    ],
+    [
+      "pqj5gcuz58qdllsa83dh4xdc6lmp2dznwgylxnqhcr",
+      "bchtest:pqj5gcuz58qdllsa83dh4xdc6lmp2dznwgylxnqhcr"
+    ],
+    [
+      "BCHTEST:PQJ5GCUZ58QDLLSA83DH4XDC6LMP2DZNWGYLXNQHCR",
+      "bchtest:pqj5gcuz58qdllsa83dh4xdc6lmp2dznwgylxnqhcr"
+    ],
+    [
+      "slptest:pqj5gcuz58qdllsa83dh4xdc6lmp2dznwgltpg6q27",
+      "bchtest:pqj5gcuz58qdllsa83dh4xdc6lmp2dznwgylxnqhcr"
+    ],
+    [
+      "pqj5gcuz58qdllsa83dh4xdc6lmp2dznwgltpg6q27",
+      "bchtest:pqj5gcuz58qdllsa83dh4xdc6lmp2dznwgylxnqhcr"
+    ],
+    [
+      "2MveGv7VMVT8gDoVGTuZrAVi7QRhGMV7uis",
+      "bchtest:pqj5gcuz58qdllsa83dh4xdc6lmp2dznwgylxnqhcr"
+    ],
+    [
+      "bchtest:pqm92aynktglqrewf4kgh2kfaqrjv3tysv8xyr2gq3",
+      "bchtest:pqm92aynktglqrewf4kgh2kfaqrjv3tysv8xyr2gq3"
+    ],
+    [
+      "pqm92aynktglqrewf4kgh2kfaqrjv3tysv8xyr2gq3",
+      "bchtest:pqm92aynktglqrewf4kgh2kfaqrjv3tysv8xyr2gq3"
+    ],
+    [
+      "BCHTEST:PQM92AYNKTGLQREWF4KGH2KFAQRJV3TYSV8XYR2GQ3",
+      "bchtest:pqm92aynktglqrewf4kgh2kfaqrjv3tysv8xyr2gq3"
+    ],
+    [
+      "slptest:pqm92aynktglqrewf4kgh2kfaqrjv3tysvujrcsljv",
+      "bchtest:pqm92aynktglqrewf4kgh2kfaqrjv3tysv8xyr2gq3"
+    ],
+    [
+      "pqm92aynktglqrewf4kgh2kfaqrjv3tysvujrcsljv",
+      "bchtest:pqm92aynktglqrewf4kgh2kfaqrjv3tysv8xyr2gq3"
+    ],
+    [
+      "2MxCWrBmyQTnjHEUmocYXjWbwRgL6Sxre7m",
+      "bchtest:pqm92aynktglqrewf4kgh2kfaqrjv3tysv8xyr2gq3"
+    ],
+    [
+      "bchtest:pdfh9ydselhq6tztd2y633lxq5jyxc5p5zlaalgu8dd8nx9h6m63g9fhyljut",
+      "bchtest:pdfh9ydselhq6tztd2y633lxq5jyxc5p5zlaalgu8dd8nx9h6m63g9fhyljut"
+    ],
+    [
+      "pdfh9ydselhq6tztd2y633lxq5jyxc5p5zlaalgu8dd8nx9h6m63g9fhyljut",
+      "bchtest:pdfh9ydselhq6tztd2y633lxq5jyxc5p5zlaalgu8dd8nx9h6m63g9fhyljut"
+    ],
+    [
+      "BCHTEST:PDFH9YDSELHQ6TZTD2Y633LXQ5JYXC5P5ZLAALGU8DD8NX9H6M63G9FHYLJUT",
+      "bchtest:pdfh9ydselhq6tztd2y633lxq5jyxc5p5zlaalgu8dd8nx9h6m63g9fhyljut"
+    ],
+    [
+      "slptest:pdfh9ydselhq6tztd2y633lxq5jyxc5p5zlaalgu8dd8nx9h6m63g5y43lg85",
+      "bchtest:pdfh9ydselhq6tztd2y633lxq5jyxc5p5zlaalgu8dd8nx9h6m63g9fhyljut"
+    ],
+    [
+      "pdfh9ydselhq6tztd2y633lxq5jyxc5p5zlaalgu8dd8nx9h6m63g5y43lg85",
+      "bchtest:pdfh9ydselhq6tztd2y633lxq5jyxc5p5zlaalgu8dd8nx9h6m63g9fhyljut"
+    ],
+    [
+      "7adf8ezUF85N4knkaYhnXuTvzCcZEWJHnoPn8jGgrDgmmkXfbfa",
+      null
+    ],
+    [
+      "CKrwVsQxD9HUpz4iMRcJhRywfgQnrFL4W4",
+      "bitcoincash:qqj5gcuz58qdllsa83dh4xdc6lmp2dznwghglm9ryz"
+    ],
+    [
+      "bchreg:qqj5gcuz58qdllsa83dh4xdc6lmp2dznwgfxday8qc",
+      "bchtest:qqj5gcuz58qdllsa83dh4xdc6lmp2dznwgn6mu85r7"
+    ],
+    [
+      "bad",
+      null
+    ],
+    [
+      "",
+      null
+    ],
+    [
+      "bitcoincash:qq",
+      null
+    ],
+    [
+      "1BoatSLRHtKNngkdXEeobR76b53LETtpyX",
+      null
+    ],
+    [
+      "bitcoincash:qqj5gcuz58qdllsa83dh4xdc6lmp2dznwghglm9ryq",
+      null
+    ],
+    [
+      "14Q3vq4tL6JwvrAHfgHP7vMv3ZCNwtZM51",
+      null
+    ],
+    [
+      "simpleledger:qqj5gcuz58qdllsa83dh4xdc6lmp2dznwghglm9ryz",
+      null
+    ],
+    [
+      "bitcoincash:Qqj5gcuz58qdllsa83dh4xdc6lmp2dznwghglm9ryz",
+      null
+    ]
+  ]
+}

@@ -9,11 +9,19 @@ To update them for a newer bchd release, copy both files from that release's
 `bchrpc/pb-js` directory and update the tag above:
 
 ```
-curl -sSfL -o src/pb/bchrpc_pb.js https://raw.githubusercontent.com/gcash/bchd/<tag>/bchrpc/pb-js/bchrpc_pb.js
-curl -sSfL -o src/pb/bchrpc_pb_service.js https://raw.githubusercontent.com/gcash/bchd/<tag>/bchrpc/pb-js/bchrpc_pb_service.js
+curl -sSfL -o vendor/bchrpc-pb/bchrpc_pb.js https://raw.githubusercontent.com/gcash/bchd/<tag>/bchrpc/pb-js/bchrpc_pb.js
+curl -sSfL -o vendor/bchrpc-pb/bchrpc_pb_service.js https://raw.githubusercontent.com/gcash/bchd/<tag>/bchrpc/pb-js/bchrpc_pb_service.js
 ```
 
+Then bump `version` in `package.json` and run `npm install`.
+
 ## Notes
+
+- They are CommonJS, so they live in this local package (installed as the
+  `bchrpc-pb` dependency) rather than in `src/`: Vite converts CommonJS in
+  dependencies to ES modules, but serves `src/` files as they are.
+- They run `Function('return this')()` when loaded, which is why the
+  Content-Security-Policy in `nginx.conf` allows `'unsafe-eval'`.
 
 - These files register their classes on a shared global `proto.pb` namespace.
   Never load a second copy of the bchrpc bindings (for example the old

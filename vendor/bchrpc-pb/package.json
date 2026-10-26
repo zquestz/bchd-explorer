@@ -1,0 +1,17 @@
+{
+  "name": "bchrpc-pb",
+  "version": "0.22.3",
+  "description": "bchd's generated bchrpc gRPC-Web bindings (bchrpc/pb-js), vendored unmodified",
+  "private": true,
+  "license": "ISC",
+  "main": "bchrpc_pb.js",
+  "exports": {
+    ".": "./bchrpc_pb.js",
+    "./bchrpc_pb": "./bchrpc_pb.js",
+    "./bchrpc_pb_service": "./bchrpc_pb_service.js"
+  },
+  "peerDependencies": {
+    "@improbable-eng/grpc-web": "^0.15.0",
+    "google-protobuf": "^3.21.4"
+  }
+}
