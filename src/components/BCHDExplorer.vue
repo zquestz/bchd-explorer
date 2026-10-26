@@ -104,8 +104,12 @@ const MAINNET = "mainnet";
 // routes for its testnet4 servers, so links shared then still use it.
 const LEGACY_ROUTE_NETWORKS = { testnet3: TESTNET4 };
 
-// bchd returns at most this many transactions per address query.
+// bchd returns at most this many transactions per address query, newest
+// first.
 const MAX_ADDRESS_TXS = 10000;
+// The block height bchd reports for unspent outputs still in the mempool
+// (mining.UnminedHeight).
+const UNMINED_HEIGHT = 0x7fffffff;
 // Blocks can hold over 100,000 transactions; list only the first ones.
 const MAX_BLOCK_TXS_SHOWN = 1000;
 
@@ -570,6 +574,14 @@ export default {
             .getOutputsList()
             .map((a) => this.parseCashToken(a.getCashToken()))
         );
+        this.addressData["transaction_list"] = this.listAddressTransactions(
+          addr,
+          addrResult
+        );
+        this.addressData["utxo_list"] = this.listUtxos(
+          addrUtxoResult,
+          tokenMetadata
+        );
       } catch (error) {
         if (this.isStale(token)) {
           return;
@@ -864,6 +876,73 @@ export default {
         ancestor: path.length > 1 ? path[path.length - 1] : "",
       };
     },
+    // listAddressTransactions summarizes an address's transactions for its
+    // page, unconfirmed first, then newest first as bchd returns them, with
+    // the address's net change in satoshis. Plain frozen objects keep 10,000
+    // transactions cheap for Vue.
+    listAddressTransactions: function (addr, addrResult) {
+      // bchd gives addresses without their prefix.
+      const bare = addr.split(":").pop();
+      const net = (tx) => {
+        let change = 0;
+        tx.getOutputsList().forEach((o) => {
+          if (o.getAddress() === bare) {
+            change += o.getValue();
+          }
+        });
+        tx.getInputsList().forEach((i) => {
+          if (i.getAddress() === bare) {
+            change -= i.getValue();
+          }
+        });
+        return change;
+      };
+      const unconfirmed = addrResult
+        .getUnconfirmedTransactionsList()
+        .map((m) => ({
+          txid: this.convertHash(m.getTransaction().getHash_asU8()),
+          height: null,
+          timestamp: m.getAddedTime(),
+          net: net(m.getTransaction()),
+        }));
+      const confirmed = addrResult.getConfirmedTransactionsList().map((tx) => ({
+        txid: this.convertHash(tx.getHash_asU8()),
+        height: tx.getBlockHeight(),
+        timestamp: tx.getTimestamp(),
+        net: net(tx),
+      }));
+      return Object.freeze(unconfirmed.concat(confirmed));
+    },
+    // listUtxos summarizes an address's unspent outputs for its page,
+    // unconfirmed first, then newest first.
+    listUtxos: function (addrUtxoResult, tokenMetadata) {
+      const utxos = addrUtxoResult.getOutputsList().map((u) => {
+        const height = u.getBlockHeight();
+        const slp = u.getSlpToken();
+        let slpLabel = "";
+        if (slp) {
+          const tm = tokenMetadata.get(
+            Buffer.from(slp.getTokenId_asU8()).toString("hex")
+          );
+          slpLabel = slp.getIsMintBaton()
+            ? "SLP mint baton"
+            : `${Big(slp.getAmount())
+                .div(10 ** slp.getDecimals())
+                .toFixed()} ${(tm && tm.ticker) || "SLP tokens"}`;
+        }
+        return {
+          txid: this.convertHash(u.getOutpoint().getHash_asU8()),
+          vout: u.getOutpoint().getIndex(),
+          value: u.getValue(),
+          height: height >= UNMINED_HEIGHT ? null : height,
+          cash_token: this.parseCashToken(u.getCashToken()),
+          slp: slpLabel,
+        };
+      });
+      const rank = (u) => (u.height === null ? Infinity : u.height);
+      utxos.sort((a, b) => rank(b) - rank(a));
+      return Object.freeze(utxos);
+    },
     // parseCashToken turns a pb.CashToken into display data, or undefined
     // when the input or output holds no token.
     parseCashToken: function (ct) {
@@ -946,6 +1025,8 @@ export default {
         unconfirmed_transactions: 0,
         tokens: [],
         cashtokens: [],
+        transaction_list: [],
+        utxo_list: [],
       };
     },
     defaultBlockData: function () {
