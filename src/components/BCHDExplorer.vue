@@ -128,8 +128,7 @@ const MAX_ADDRESS_TXS = 10000;
 // The block height bchd reports for unspent outputs still in the mempool
 // (mining.UnminedHeight).
 const UNMINED_HEIGHT = 0x7fffffff;
-// Blocks can hold over 100,000 transactions; list only the first ones.
-const MAX_BLOCK_TXS_SHOWN = 1000;
+
 
 // How long a search runs before "Searching…" appears, in milliseconds.
 const SEARCHING_TEXT_DELAY = 300;
@@ -697,7 +696,9 @@ export default {
           .getTransactionDataList()
           .map((td) => this.convertHash(td.getTransactionHash_asU8()));
         this.blockData["transaction_count"] = hashes.length;
-        this.blockData["transactions"] = hashes.slice(0, MAX_BLOCK_TXS_SHOWN);
+        // Blocks can hold over 100,000 transactions, which the block page
+        // pages through; frozen so Vue doesn't track each one.
+        this.blockData["transactions"] = Object.freeze(hashes);
         this.block = this.convertHash(blockInfo.getHash());
         this.blockData["height"] = blockInfo.getHeight();
         this.blockData["version"] = blockInfo.getVersion();

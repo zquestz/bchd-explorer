@@ -77,32 +77,65 @@
         </tr>
       </tbody>
     </table>
-    <template v-if="blockData['transaction_count']">
+    <section class="block-transactions" v-if="blockData['transaction_count']">
       <h2 v-if="blockData['transaction_count'] === 1">1 Transaction</h2>
       <h2 v-else>{{blockData['transaction_count']}} Transactions</h2>
-      <p v-if="blockData['transactions'].length < blockData['transaction_count']">
-        Showing the first {{blockData['transactions'].length}}.
-      </p>
+      <Pager :page="txPage" :pages="pageCount" @change="txPage = $event" />
       <table class="table is-bordered is-striped" align="center">
+        <thead>
+          <tr>
+            <th class="tx-index">Index</th>
+            <th>Transaction</th>
+          </tr>
+        </thead>
         <tbody>
-          <tr v-for="(hash, index) in blockData['transactions']" :key="hash">
-            <td class="tx-index">{{index}}</td>
+          <tr v-for="(hash, row) in pageTransactions" :key="hash">
+            <!-- The position in the block, which page 3 starts at 100. -->
+            <td class="tx-index">{{pageStart + row}}{{pageStart + row === 0 ? " (coinbase)" : ""}}</td>
             <td><ResultLink type="tx" :value="hash" :network="network" /></td>
           </tr>
         </tbody>
       </table>
-    </template>
+      <Pager :page="txPage" :pages="pageCount" @change="txPage = $event" />
+    </section>
   </div>
 </template>
 
 <script>
+import Pager from "./Pager.vue";
 import ResultLink from "./ResultLink.vue";
 import { formatTime, formatTimeAndAge } from "../format";
+
+const PAGE_SIZE = 50;
+
 export default {
   name: "bchblock",
   props: ["block", "blockData", "network"],
   components: {
+    Pager,
     ResultLink
+  },
+  data: function() {
+    return {
+      txPage: 1
+    };
+  },
+  computed: {
+    pageCount: function() {
+      return Math.ceil(this.blockData["transactions"].length / PAGE_SIZE);
+    },
+    pageStart: function() {
+      return (this.txPage - 1) * PAGE_SIZE;
+    },
+    pageTransactions: function() {
+      return this.blockData["transactions"].slice(this.pageStart, this.pageStart + PAGE_SIZE);
+    }
+  },
+  watch: {
+    // A new block starts on the first page.
+    block: function() {
+      this.txPage = 1;
+    }
   },
   methods: {
     formatTime,
@@ -113,7 +146,17 @@ export default {
 
 <style scoped>
 .tx-index {
-  width: 5em;
+  width: 9em;
+}
+
+/* The space goes after the list, so the bottom pager sits right under the
+   table, as on the address page. */
+.block-transactions {
+  margin-bottom: 1.5rem;
+}
+
+.block-transactions .table {
+  margin-bottom: 0;
 }
 
 .block-nav {
