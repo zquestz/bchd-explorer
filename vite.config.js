@@ -25,6 +25,12 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
+  css: {
+    preprocessorOptions: {
+      // Bulma 1.0.4's Sass uses syntax that current Sass deprecates.
+      scss: { quietDeps: true },
+    },
+  },
   // bchrpc-pb is a linked local package of CommonJS files. Linked packages
   // aren't pre-bundled or converted to ES modules unless listed here.
   optimizeDeps: {

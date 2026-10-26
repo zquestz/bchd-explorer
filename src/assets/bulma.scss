@@ -1,0 +1,57 @@
+/**
+ * Copyright 2026 Josh Ellithorpe
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// Only the parts of Bulma the explorer uses: about a sixth of the full
+// stylesheet. Add a module here before using its classes.
+
+// The explorer's colors: primary is the logo's green, as in the Bulma 0.8
+// build it used before.
+@use "bulma/sass/utilities" with (
+  $primary: #24e6aa
+);
+@use "bulma/sass/utilities/css-variables" as cv;
+// Search icon: light grey, darker while the search box has focus.
+@use "bulma/sass/form/shared" with (
+  $input-icon-color: cv.getVar("border"),
+  $input-icon-hover-color: cv.getVar("border"),
+  $input-icon-focus-color: cv.getVar("text")
+);
+@use "bulma/sass/base/minireset";
+@use "bulma/sass/base/generic";
+@use "bulma/sass/base/animations";
+@use "bulma/sass/elements/icon";
+@use "bulma/sass/elements/loader";
+@use "bulma/sass/elements/table";
+@use "bulma/sass/elements/title";
+
+@use "bulma/sass/form/input-textarea";
+@use "bulma/sass/form/tools";
+@use "bulma/sass/layout/container";
+@use "bulma/sass/layout/section";
+@use "bulma/sass/helpers/typography";
+@use "bulma/sass/themes/light";
+@use "bulma/sass/themes/setup";
+
+:root {
+  @include light.light-theme;
+  @include setup.setup-theme;
+}
+
+// Bulma 1 tints the text of colored inputs (is-primary) with their color;
+// keep it the normal text color.
+.input {
+  color: var(--bulma-text-strong);
+}

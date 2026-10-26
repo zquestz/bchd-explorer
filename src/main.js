@@ -15,6 +15,8 @@
  * limitations under the License.
  */
 
+// First, so component styles override Bulma's.
+import "./assets/bulma.scss";
 import { createApp } from "vue";
 import { createRouter, createWebHistory } from "vue-router";
 import App from "./App.vue";
