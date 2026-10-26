@@ -16,7 +16,7 @@
 
 <template>
   <div class="explorer">
-    <section class="section">
+    <section class="section" :aria-busy="searching || connecting ? 'true' : 'false'">
       <div class="container has-text-right">
         <select v-model="selectedNetwork" @change="updateNetwork">
           <option v-for="node in nodes" :value="node.url" :key="node.url">
@@ -30,7 +30,10 @@
           <img class="logo" src="../assets/bchd-explorer.svg" alt="BCHD Explorer" />
         </router-link>
         <div class="field">
-          <div class="control has-icons-left">
+          <div
+            class="control has-icons-left"
+            :class="{ 'is-loading': searching || connecting }"
+          >
             <input
               class="input is-primary"
               type="text"
@@ -48,7 +51,15 @@
       </div>
       <div class="info-result container has-text-centered info-result">
         <template v-if="tip.hash">Height: <ResultLink type="block" :value="tip.height" :network="network" /> Block Hash: <ResultLink type="block" :value="tip.hash" :network="network" /></template>
+        <span v-else-if="connecting" role="status"><span class="loader inline-loader"></span>Connecting to {{ connectingTo }}…</span>
         <template v-else>{{ infoResult }}</template>
+      </div>
+      <div
+        class="container results has-text-centered"
+        v-if="showSearching"
+        role="status"
+      >
+        <span class="loader inline-loader"></span>Searching…
       </div>
       <div
         class="container results has-text-centered"
@@ -76,6 +87,13 @@
       </div>
       <div class="container results" v-if="isHome && recentBlocks.length">
         <RecentBlocks :blocks="recentBlocks" :network="network" />
+      </div>
+      <div
+        class="container results has-text-centered"
+        v-else-if="isHome && loadingRecent && !searching"
+        role="status"
+      >
+        <span class="loader inline-loader"></span>Loading recent blocks…
       </div>
     </section>
     <footer class="has-text-centered">
@@ -112,6 +130,9 @@ const MAX_ADDRESS_TXS = 10000;
 const UNMINED_HEIGHT = 0x7fffffff;
 // Blocks can hold over 100,000 transactions; list only the first ones.
 const MAX_BLOCK_TXS_SHOWN = 1000;
+
+// How long a search runs before "Searching…" appears, in milliseconds.
+const SEARCHING_TEXT_DELAY = 300;
 
 // The home page lists this many of the newest blocks, fetching at most
 // RECENT_BLOCKS_CONCURRENCY at a time: bchd limits each server to 16 calls
@@ -177,6 +198,13 @@ export default {
       recentBlocks: [],
       // The tip height recentBlocks was loaded for.
       recentBlocksTip: null,
+      // Loading state for the spinners.
+      searching: false,
+      showSearching: false,
+      connecting: false,
+      // The server name shown while connecting.
+      connectingTo: "",
+      loadingRecent: false,
       input: "",
       network: MAINNET,
       nodeIndexes: this.defaultNodeIndexes(),
@@ -265,8 +293,7 @@ export default {
         return;
       }
       if (input === undefined) {
-        this.searchToken++;
-        this.currentQuery = undefined;
+        this.cancelSearch();
         this.resetState();
         this.input = "";
         this.loadRecentBlocks();
@@ -312,6 +339,26 @@ export default {
     search: async function () {
       this.searchBCHD(this.input);
     },
+    // beginSearch shows the spinners. The "Searching…" text waits
+    // SEARCHING_TEXT_DELAY so that fast lookups don't flash it.
+    beginSearch: function () {
+      this.searching = true;
+      clearTimeout(this.searchingTimer);
+      this.searchingTimer = setTimeout(() => {
+        this.showSearching = this.searching;
+      }, SEARCHING_TEXT_DELAY);
+    },
+    endSearch: function () {
+      clearTimeout(this.searchingTimer);
+      this.searching = false;
+      this.showSearching = false;
+    },
+    // cancelSearch abandons any search in progress, e.g. on going home.
+    cancelSearch: function () {
+      this.searchToken++;
+      this.currentQuery = undefined;
+      this.endSearch();
+    },
     searchBCHD: async function (input) {
       // Pasted values often carry spaces or a newline.
       input = typeof input === "string" ? input.trim() : input;
@@ -320,9 +367,23 @@ export default {
 
       if (input == "") {
         this.currentQuery = undefined;
+        this.endSearch();
         this.$router.push({ name: "home" }).catch(() => {});
         return;
       }
+      this.beginSearch();
+      try {
+        await this.runSearch(input, token);
+      } finally {
+        // A newer search owns the spinner.
+        if (!this.isStale(token)) {
+          this.endSearch();
+        }
+      }
+    },
+    // runSearch looks input up as an address, block or transaction, in that
+    // order, and pushes the route for what it finds.
+    runSearch: async function (input, token) {
       // The route watcher skips the route pushed below for this input.
       this.currentQuery = input;
       // Token-aware addresses (z..., r...) are looked up by their standard
@@ -420,8 +481,7 @@ export default {
     // goHome clears the page when the logo is clicked. On another route the
     // route watcher does the same; on "/" the route doesn't change.
     goHome: function () {
-      this.searchToken++;
-      this.currentQuery = undefined;
+      this.cancelSearch();
       this.resetState();
       this.input = "";
       this.loadRecentBlocks();
@@ -434,6 +494,7 @@ export default {
         return;
       }
       this.recentBlocksTip = tipHeight;
+      this.loadingRecent = true;
       const client = this.grpc;
       const heights = [];
       for (let h = tipHeight; h >= 0 && h > tipHeight - RECENT_BLOCKS; h--) {
@@ -458,6 +519,7 @@ export default {
         // The server changed, or a newer tip started its own load.
         return;
       }
+      this.loadingRecent = false;
       const loaded = blocks.filter((b) => b !== null);
       if (!loaded.length) {
         // Let the next status refresh try again.
@@ -1094,18 +1156,29 @@ export default {
     updateNetwork: async function () {
       this.resetState();
       // Results of a search on the previous server must not land here.
-      this.searchToken++;
-      this.currentQuery = undefined;
-      this.infoResult = "Not connected (select another server)";
+      this.cancelSearch();
+      this.infoResult = "";
       this.tip = { height: null, hash: "" };
       this.recentBlocks = [];
       this.recentBlocksTip = null;
+      this.loadingRecent = false;
       const node = this.nodes.find((n) => n.url === this.selectedNetwork);
       this.network = node ? node.network : MAINNET;
+      this.connectingTo = node ? node.name : this.selectedNetwork;
       this.nodeIndexes = this.defaultNodeIndexes();
-      this.grpc = this.newGrpcClient();
+      const client = this.newGrpcClient();
+      this.grpc = client;
+      this.connecting = true;
       // Wait for the node to report its network so routes use it.
       await this.getInfo();
+      if (client !== this.grpc) {
+        // Another server was selected meanwhile; its switch takes over.
+        return;
+      }
+      this.connecting = false;
+      if (!this.tip.hash) {
+        this.infoResult = "Not connected (select another server)";
+      }
       const params = this.$route.params;
       const input = params.address || params.blockHash || params.txId;
       if (input != undefined) {
@@ -1210,6 +1283,7 @@ export default {
     // Search bookkeeping that the template never shows.
     this.searchToken = 0;
     this.currentQuery = undefined;
+    this.searchingTimer = null;
     if (this.getInfoBar) {
       this.getInfo();
       this.infoInterval = setInterval(() => {
@@ -1219,6 +1293,7 @@ export default {
   },
   beforeDestroy: function () {
     clearInterval(this.infoInterval);
+    clearTimeout(this.searchingTimer);
   },
 };
 </script>
@@ -1234,6 +1309,13 @@ export default {
   margin-left: auto;
   display: block;
   margin-bottom: 1em;
+}
+
+/* Bulma's .loader is a block; this one sits in a line of text. */
+.inline-loader {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 0.5em;
 }
 
 /* Only the logo itself is clickable, not the whole row. */
