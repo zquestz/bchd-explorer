@@ -151,9 +151,11 @@
       </div>
     </section>
     <footer class="has-text-centered">
-      Copyright &copy; 2026 Josh Ellithorpe &middot;
-      <a href="https://github.com/zquestz/bchd-explorer/blob/master/LICENSE.md">Apache 2.0</a> &middot;
-      <a href="https://github.com/zquestz/bchd-explorer">Source on GitHub</a>
+      <div>Copyright &copy; 2026 Josh Ellithorpe</div>
+      <div class="is-size-7">
+        <a href="https://github.com/zquestz/bchd-explorer/blob/master/LICENSE.md">Apache 2.0</a> &middot;
+        <a href="https://github.com/zquestz/bchd-explorer">Source on GitHub</a>
+      </div>
     </footer>
   </div>
 </template>
