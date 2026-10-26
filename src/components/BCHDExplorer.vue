@@ -55,15 +55,20 @@
         <strong>{{ result }}</strong>
       </div>
       <div class="container results" v-show="address.length" v-cloak>
-        <BCHAddress :address="address" :addressData="addressData" />
+        <BCHAddress
+          :address="address"
+          :addressData="addressData"
+          :network="network"
+        />
       </div>
       <div class="container results" v-show="block.length" v-cloak>
-        <BCHBlock :block="block" :blockData="blockData" @search="searchLink" />
+        <BCHBlock :block="block" :blockData="blockData" :network="network" />
       </div>
       <div class="container results" v-show="transaction.length" v-cloak>
         <BCHTransaction
           :transaction="transaction"
           v-bind:transactionData="transactionData"
+          :network="network"
         />
       </div>
     </section>
@@ -166,22 +171,65 @@ export default {
   },
   mounted() {
     // Links carry their network, so start on a server for it.
-    const params = this.$route.params;
-    const routeNetwork = params.network;
-    const current = this.nodes.find((n) => n.url === this.selectedNetwork);
-    if (routeNetwork && (!current || current.network !== routeNetwork)) {
+    this.selectNodeForNetwork(this.$route.params.network);
+    this.updateNetwork();
+  },
+  watch: {
+    // Back, forward and edited URLs change the route without a search, as
+    // every route reuses this component.
+    $route(to) {
+      const input = this.routeInput(to);
+      if (input !== undefined && input === this.currentQuery) {
+        // The route a search pushed for its own results.
+        return;
+      }
+      if (this.selectNodeForNetwork(to.params.network)) {
+        this.input = input || "";
+        // updateNetwork searches the route's input on the new server.
+        this.updateNetwork();
+        return;
+      }
+      if (input === undefined) {
+        this.searchToken++;
+        this.currentQuery = undefined;
+        this.resetState();
+        this.input = "";
+        return;
+      }
+      this.input = input;
+      this.searchBCHD(input);
+    },
+  },
+  methods: {
+    // routeInput returns the address, block or transaction a route shows.
+    routeInput: function (route) {
+      const params = route.params;
+      return params.address || params.blockHash || params.txId;
+    },
+    // selectNodeForNetwork selects the first listed server for a route's
+    // network unless the selected one is for it. Returns whether the
+    // selection changed.
+    selectNodeForNetwork: function (routeNetwork) {
+      const current = this.nodes.find((n) => n.url === this.selectedNetwork);
+      if (!routeNetwork || (current && current.network === routeNetwork)) {
+        return false;
+      }
       const match =
         this.nodes.find((n) => n.network === routeNetwork) ||
         this.nodes.find(
           (n) => n.network === LEGACY_ROUTE_NETWORKS[routeNetwork]
         );
-      if (match) {
-        this.selectedNetwork = match.url;
+      if (!match || match.url === this.selectedNetwork) {
+        return false;
       }
-    }
-    this.updateNetwork();
-  },
-  methods: {
+      this.selectedNetwork = match.url;
+      return true;
+    },
+    // isStale reports whether a newer search or server change has replaced
+    // the search with this token.
+    isStale: function (token) {
+      return token !== undefined && token !== this.searchToken;
+    },
     debug(val) {
       window.console.log(val);
     },
@@ -190,17 +238,24 @@ export default {
     },
     searchBCHD: async function (input) {
       this.resetState();
+      const token = ++this.searchToken;
 
       if (input == "") {
+        this.currentQuery = undefined;
         this.$router.push({ name: "home" }).catch(() => {});
         return;
       }
+      // The route watcher skips the route pushed below for this input.
+      this.currentQuery = input;
       // Token-aware addresses (z..., r...) are looked up by their standard
       // form, which bchaddrjs-slp understands and the node indexes by.
       const address = fromTokenAware(input) || input;
       if (bchaddr.isValidAddress(address)) {
         var addr = bchaddr.toCashAddress(address);
-        await this.populateAddressData(addr);
+        await this.populateAddressData(addr, token);
+        if (this.isStale(token)) {
+          return;
+        }
         this.$router
           .push({
             name: "address",
@@ -212,7 +267,10 @@ export default {
           .catch(() => {});
         return;
       }
-      var blockData = await this.populateBlockData(input);
+      var blockData = await this.populateBlockData(input, token);
+      if (this.isStale(token)) {
+        return;
+      }
       if (blockData === true) {
         this.$router
           .push({
@@ -225,7 +283,10 @@ export default {
           .catch(() => {});
         return;
       }
-      var transactionData = await this.populateTransactionData(input);
+      var transactionData = await this.populateTransactionData(input, token);
+      if (this.isStale(token)) {
+        return;
+      }
       if (transactionData === true) {
         this.$router
           .push({
@@ -278,13 +339,8 @@ export default {
     determineNetwork: function () {
       return this.network;
     },
-    // searchLink opens a hash clicked in the results, e.g. a block's
-    // transaction.
-    searchLink: function (value) {
-      this.input = value;
-      this.searchBCHD(value);
-    },
-    populateAddressData: async function (addr) {
+
+    populateAddressData: async function (addr, token) {
       try {
         const utxoQuery = {
           address: addr,
@@ -305,6 +361,9 @@ export default {
           address: addr,
           nbFetch: MAX_ADDRESS_TXS,
         });
+        if (this.isStale(token)) {
+          return;
+        }
         this.address = addr;
         var total = 0;
         addrUtxoResult.getOutputsList().forEach(function (a) {
@@ -411,10 +470,13 @@ export default {
             .map((a) => this.parseCashToken(a.getCashToken()))
         );
       } catch (error) {
+        if (this.isStale(token)) {
+          return;
+        }
         this.result = this.describeError(error) || "Address not found.";
       }
     },
-    populateBlockData: async function (input) {
+    populateBlockData: async function (input, token) {
       // Only plain decimal input is a height; a loose numeric comparison
       // would also accept forms such as "1e3" or "0x10".
       var blockFinder =
@@ -428,6 +490,9 @@ export default {
             hash: input,
             reversedHashOrder: true,
           });
+        }
+        if (this.isStale(token)) {
+          return false;
         }
         var blockInfo = blockResult.getBlock().getInfo();
         const hashes = blockResult
@@ -459,11 +524,13 @@ export default {
         this.blockData["median_time"] = blockInfo.getMedianTime();
         return true;
       } catch (error) {
-        this.recordError(error);
+        if (!this.isStale(token)) {
+          this.recordError(error);
+        }
         return false;
       }
     },
-    populateTransactionData: async function (input) {
+    populateTransactionData: async function (input, token) {
       try {
         var txResult = await this.grpc.getTransaction({
           hash: input,
@@ -471,6 +538,9 @@ export default {
           // bchd refuses the whole call for metadata without an SLP index.
           includeTokenMetadata: this.nodeIndexes.slp !== false,
         });
+        if (this.isStale(token)) {
+          return false;
+        }
         this.transaction = input;
         var tx = txResult.getTransaction();
         this.transactionData["version"] = tx.getVersion();
@@ -628,7 +698,9 @@ export default {
         }
         return true;
       } catch (error) {
-        this.recordError(error);
+        if (!this.isStale(token)) {
+          this.recordError(error);
+        }
         return false;
       }
     },
@@ -684,9 +756,8 @@ export default {
       const path = res.getPathList_asU8().map((h) => this.convertHash(h));
       return {
         hash: this.convertHash(proof.getHash_asU8()),
-        outpoint: outpoint
-          ? `${this.convertHash(outpoint.getHash_asU8())}:${outpoint.getIndex()}`
-          : "",
+        outpoint_hash: outpoint ? this.convertHash(outpoint.getHash_asU8()) : "",
+        outpoint_index: outpoint ? outpoint.getIndex() : "",
         // When the proof is for an unconfirmed ancestor, path runs from the
         // transaction looked up to that ancestor.
         ancestor: path.length > 1 ? path[path.length - 1] : "",
@@ -818,6 +889,9 @@ export default {
     },
     updateNetwork: async function () {
       this.resetState();
+      // Results of a search on the previous server must not land here.
+      this.searchToken++;
+      this.currentQuery = undefined;
       this.infoResult = "Not connected (select another server)";
       const node = this.nodes.find((n) => n.url === this.selectedNetwork);
       this.network = node ? node.network : MAINNET;
@@ -923,6 +997,9 @@ export default {
   created: function () {
     // Set outside data() so Vue doesn't make the client's internals reactive.
     this.grpc = null;
+    // Search bookkeeping that the template never shows.
+    this.searchToken = 0;
+    this.currentQuery = undefined;
     if (this.getInfoBar) {
       this.getInfo();
       this.infoInterval = setInterval(() => {

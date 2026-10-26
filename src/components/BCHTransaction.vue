@@ -44,7 +44,7 @@
         </tr>
         <tr v-if="transactionData['token_metadata']">
           <td>SLP Token ID</td>
-          <td>{{transactionData['token_metadata'].token_id}}</td>
+          <td><ResultLink type="tx" :value="transactionData['token_metadata'].token_id" :network="network" /></td>
         </tr>
         <tr v-if="transactionData['burn_flags']" style="color:red;">
           <td>SLP Burns</td>
@@ -64,7 +64,7 @@
         </tr>
         <tr v-if="transactionData['token_metadata'] && [10,11].includes(transactionData['slp_action'])">
           <td>SLP Group ID</td>
-          <td>{{transactionData['token_metadata'].nft_group_id}}</td>
+          <td><ResultLink type="tx" :value="transactionData['token_metadata'].nft_group_id" :network="network" /></td>
         </tr>
         <tr>
           <td>Version</td>
@@ -105,20 +105,21 @@
           </tr>
           <tr style="color:red;">
             <td>Double Spent Output</td>
-            <td>{{transactionData['dsproof'].outpoint}}</td>
+            <td><ResultLink type="tx" :value="transactionData['dsproof'].outpoint_hash" :network="network" />:{{transactionData['dsproof'].outpoint_index}}</td>
           </tr>
           <tr v-if="transactionData['dsproof'].ancestor" style="color:red;">
             <td>Double Spent Ancestor</td>
-            <td>{{transactionData['dsproof'].ancestor}}</td>
+            <td><ResultLink type="tx" :value="transactionData['dsproof'].ancestor" :network="network" /></td>
           </tr>
         </template>
         <tr>
           <td>Block Height</td>
-          <td>{{transactionData['block_height']}}</td>
+          <!-- Unconfirmed transactions report height 0, which isn't their block. -->
+          <td><ResultLink type="block" :value="confirmed ? transactionData['block_height'] : ''" :label="String(transactionData['block_height'])" :network="network" /></td>
         </tr>
         <tr>
           <td>Block Hash</td>
-          <td>{{transactionData['block_hash']}}</td>
+          <td><ResultLink type="block" :value="confirmed ? transactionData['block_hash'] : ''" :label="transactionData['block_hash']" :network="network" /></td>
         </tr>
       </tbody>
     </table>
@@ -160,11 +161,12 @@
         </tr>
         <tr v-if="item.token && item.token.isBurned">
           <td>SLP Token ID Burned</td>
-          <td style="color:red;">{{item.token.token_id}}</td>
+          <td style="color:red;"><ResultLink type="tx" :value="item.token.token_id" :network="network" /></td>
         </tr>
         <tr>
           <td>Outpoint Hash</td>
-          <td>{{convertHash(item.getOutpoint().getHash())}}</td>
+          <!-- A coinbase input's all-zero outpoint isn't a transaction. -->
+          <td><ResultLink type="tx" :value="outpointLink(item)" :label="convertHash(item.getOutpoint().getHash())" :network="network" /></td>
         </tr>
         <tr>
           <td>Outpoint Index</td>
@@ -188,7 +190,7 @@
         </tr>
         <tr>
           <td>Address</td>
-          <td>{{item.getAddress()}}</td>
+          <td><ResultLink type="address" :value="item.getAddress()" :network="network" /></td>
         </tr>
       </tbody>
     </table>
@@ -241,7 +243,7 @@
         </tr>
         <tr>
           <td>Address</td>
-          <td>{{item.getAddress()}}</td>
+          <td><ResultLink type="address" :value="item.getAddress()" :network="network" /></td>
         </tr>
         <tr>
           <td>Script Class</td>
@@ -253,10 +255,25 @@
 </template>
 
 <script>
+import ResultLink from "./ResultLink.vue";
 export default {
   name: "bchtransaction",
-  props: ["transaction", "transactionData"],
+  props: ["transaction", "transactionData", "network"],
+  components: {
+    ResultLink
+  },
+  computed: {
+    confirmed: function() {
+      return this.transactionData["confirmations"] > 0;
+    }
+  },
   methods: {
+    // outpointLink returns the transaction an input spends, or "" for a
+    // coinbase input, whose outpoint hash is all zeros.
+    outpointLink: function(item) {
+      const hash = item.getOutpoint().getHash_asU8();
+      return hash.every((b) => b === 0) ? "" : this.convertHash(hash);
+    },
     // dsproofScoreLabel explains a GetDoubleSpendProofScore result. proof is
     // the proof found, false when there is none, or null when unknown.
     dsproofScoreLabel: function(score, proof) {

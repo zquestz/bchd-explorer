@@ -27,7 +27,7 @@
           </tr>
           <tr>
             <td>Token ID</td>
-            <td>{{token.token_id}}</td>
+            <td><ResultLink type="tx" :value="token.token_id" :network="network" /></td>
           </tr>
           <tr>
             <td>Document URL</td>
@@ -39,11 +39,12 @@
           </tr>
           <tr v-if="token.token_metadata.nft_group_id">
             <td>NFT Group</td>
-            <td>{{token.token_metadata.nft_group_id}}</td>
+            <td><ResultLink type="tx" :value="token.token_metadata.nft_group_id" :network="network" /></td>
           </tr>
           <tr v-else>
             <td>Current Mint Baton Location</td>
-            <td>{{token.token_metadata.mint_baton_vout ? `${token.token_metadata.mint_baton_txid}:${token.token_metadata.mint_baton_vout}` : "NA"}}</td>
+            <td v-if="token.token_metadata.mint_baton_vout"><ResultLink type="tx" :value="token.token_metadata.mint_baton_txid" :network="network" />:{{token.token_metadata.mint_baton_vout}}</td>
+            <td v-else>NA</td>
           </tr>
         </tbody>
       </table>
@@ -53,8 +54,12 @@
 </template>
 
 <script>
+import ResultLink from "./ResultLink.vue";
 export default {
   name: "slpaddress",
-  props: ["tokens"]
+  props: ["tokens", "network"],
+  components: {
+    ResultLink
+  }
 };
 </script>

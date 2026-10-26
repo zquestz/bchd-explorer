@@ -31,7 +31,7 @@
         </tr>
         <tr>
           <td>Previous Block</td>
-          <td>{{blockData['previous_block']}}</td>
+          <td><ResultLink type="block" :value="blockData['previous_block']" :network="network" /></td>
         </tr>
         <tr>
           <td>Merkle Root</td>
@@ -59,7 +59,7 @@
         </tr>
         <tr>
           <td>Next Block Hash</td>
-          <td>{{blockData['next_block_hash']}}</td>
+          <td><ResultLink type="block" :value="blockData['next_block_hash']" :network="network" /></td>
         </tr>
         <tr>
           <td>Size</td>
@@ -81,7 +81,7 @@
         <tbody>
           <tr v-for="(hash, index) in blockData['transactions']" :key="hash">
             <td class="tx-index">{{index}}</td>
-            <td><a href="#" @click.prevent="$emit('search', hash)">{{hash}}</a></td>
+            <td><ResultLink type="tx" :value="hash" :network="network" /></td>
           </tr>
         </tbody>
       </table>
@@ -90,9 +90,13 @@
 </template>
 
 <script>
+import ResultLink from "./ResultLink.vue";
 export default {
   name: "bchblock",
-  props: ["block", "blockData"]
+  props: ["block", "blockData", "network"],
+  components: {
+    ResultLink
+  }
 };
 </script>
 
