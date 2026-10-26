@@ -71,6 +71,21 @@
         </tr>
       </tbody>
     </table>
+    <template v-if="blockData['transaction_count']">
+      <h2 v-if="blockData['transaction_count'] === 1">1 Transaction</h2>
+      <h2 v-else>{{blockData['transaction_count']}} Transactions</h2>
+      <p v-if="blockData['transactions'].length < blockData['transaction_count']">
+        Showing the first {{blockData['transactions'].length}}.
+      </p>
+      <table class="table is-bordered is-striped" align="center">
+        <tbody>
+          <tr v-for="(hash, index) in blockData['transactions']" :key="hash">
+            <td class="tx-index">{{index}}</td>
+            <td><a href="#" @click.prevent="$emit('search', hash)">{{hash}}</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </template>
   </div>
 </template>
 
@@ -80,3 +95,9 @@ export default {
   props: ["block", "blockData"]
 };
 </script>
+
+<style scoped>
+.tx-index {
+  width: 5em;
+}
+</style>

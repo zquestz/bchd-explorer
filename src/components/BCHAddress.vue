@@ -35,6 +35,10 @@
           <td>Cash Address</td>
           <td>{{addressData['cash']}}</td>
         </tr>
+        <tr v-if="addressData['token_aware']">
+          <td>Token-Aware Address</td>
+          <td>{{addressData['token_aware']}}</td>
+        </tr>
         <tr>
           <td>Slp Address</td>
           <td>{{addressData['slp']}}</td>

@@ -67,6 +67,21 @@ export class BchrpcClient {
     return this.unary("getBlockInfo", req);
   }
 
+  // getBlock returns the block's info and its transaction hashes. Without
+  // full transactions it needs no index on the node.
+  getBlock({ index, hash, reversedHashOrder }) {
+    const req = new pb.GetBlockRequest();
+    if (index !== null && index !== undefined) {
+      req.setHeight(index);
+    } else if (hash) {
+      req.setHash(hashToBytes(hash, reversedHashOrder));
+    } else {
+      throw Error("No index or hash provided for block");
+    }
+    req.setFullTransactions(false);
+    return this.unary("getBlock", req);
+  }
+
   getTransaction({ hash, reversedHashOrder, includeTokenMetadata = true }) {
     const req = new pb.GetTransactionRequest();
     req.setHash(hashToBytes(hash, reversedHashOrder));

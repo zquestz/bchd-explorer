@@ -78,6 +78,10 @@
           <td>Size</td>
           <td>{{transactionData['size']}}</td>
         </tr>
+        <tr v-if="transactionData['fee'] !== null">
+          <td>Fee</td>
+          <td>{{transactionData['fee']}} satoshis ({{transactionData['fee_rate']}} sat/B)</td>
+        </tr>
         <tr>
           <td>Timestamp</td>
           <td>{{transactionData['timestamp']}}</td>
@@ -124,7 +128,7 @@
       class="table is-bordered is-striped"
       align="center"
       v-for="item in transactionData['inputs']"
-      v-bind:key="item.getIndex()"
+      v-bind:key="'in-' + item.getIndex()"
     >
       <tbody>
         <tr>
@@ -194,7 +198,7 @@
       class="table is-bordered is-striped"
       align="center"
       v-for="item in transactionData['outputs']"
-      v-bind:key="item.getIndex()"
+      v-bind:key="'out-' + item.getIndex()"
     >
       <tbody>
         <tr>
@@ -230,6 +234,10 @@
         <tr>
           <td>Pubkey Script</td>
           <td>{{viewScript(item.getPubkeyScript_asU8())}}</td>
+        </tr>
+        <tr v-if="item.getDisassembledScript()">
+          <td>Pubkey Script (ASM)</td>
+          <td>{{item.getDisassembledScript()}}</td>
         </tr>
         <tr>
           <td>Address</td>

@@ -58,7 +58,7 @@
         <BCHAddress :address="address" :addressData="addressData" />
       </div>
       <div class="container results" v-show="block.length" v-cloak>
-        <BCHBlock :block="block" :blockData="blockData" />
+        <BCHBlock :block="block" :blockData="blockData" @search="searchLink" />
       </div>
       <div class="container results" v-show="transaction.length" v-cloak>
         <BCHTransaction
@@ -76,6 +76,7 @@
 <script>
 import Big from "big.js";
 import { BchrpcClient, GrpcCode, pb } from "../bchrpc";
+import { fromTokenAware, toTokenAware } from "../cashaddr";
 import bchaddr from "bchaddrjs-slp";
 import BCHAddress from "./BCHAddress.vue";
 import BCHBlock from "./BCHBlock.vue";
@@ -85,6 +86,22 @@ import prettyBytes from "pretty-bytes";
 
 const TESTNET4 = "testnet4";
 const MAINNET = "mainnet";
+
+// Before the explorer read the network from the node, it put "testnet3" in
+// routes for its testnet4 servers, so links shared then still use it.
+const LEGACY_ROUTE_NETWORKS = { testnet3: TESTNET4 };
+
+// bchd returns at most this many transactions per address query.
+const MAX_ADDRESS_TXS = 10000;
+// Blocks can hold over 100,000 transactions; list only the first ones.
+const MAX_BLOCK_TXS_SHOWN = 1000;
+
+// Errors bchd gives when the node runs without an index a lookup needs.
+const MISSING_INDEXES = {
+  "addrindex required": ["an address index (--addrindex)", "addresses"],
+  "txindex required": ["a transaction index (--txindex)", "transactions"],
+  "slpindex required": ["an SLP index (--slpindex)", "SLP tokens"],
+};
 
 // Maps the node's reported network (GetBlockchainInfoResponse.BitcoinNet) to
 // the names used in routes, e.g. 5 to "chipnet".
@@ -113,6 +130,8 @@ export default {
       infoResult: " ",
       input: "",
       network: MAINNET,
+      nodeIndexes: this.defaultNodeIndexes(),
+      lookupErrors: [],
       address: "",
       addressData: this.defaultAddressData(),
       transaction: "",
@@ -146,6 +165,20 @@ export default {
     };
   },
   mounted() {
+    // Links carry their network, so start on a server for it.
+    const params = this.$route.params;
+    const routeNetwork = params.network;
+    const current = this.nodes.find((n) => n.url === this.selectedNetwork);
+    if (routeNetwork && (!current || current.network !== routeNetwork)) {
+      const match =
+        this.nodes.find((n) => n.network === routeNetwork) ||
+        this.nodes.find(
+          (n) => n.network === LEGACY_ROUTE_NETWORKS[routeNetwork]
+        );
+      if (match) {
+        this.selectedNetwork = match.url;
+      }
+    }
     this.updateNetwork();
   },
   methods: {
@@ -162,8 +195,11 @@ export default {
         this.$router.push({ name: "home" }).catch(() => {});
         return;
       }
-      if (bchaddr.isValidAddress(input)) {
-        var addr = bchaddr.toCashAddress(input);
+      // Token-aware addresses (z..., r...) are looked up by their standard
+      // form, which bchaddrjs-slp understands and the node indexes by.
+      const address = fromTokenAware(input) || input;
+      if (bchaddr.isValidAddress(address)) {
+        var addr = bchaddr.toCashAddress(address);
         await this.populateAddressData(addr);
         this.$router
           .push({
@@ -202,21 +238,72 @@ export default {
           .catch(() => {});
         return;
       }
-      this.result = "No address, transaction or block hash/height found.";
+      this.result = this.lookupErrors.length
+        ? this.lookupErrors.join("\n")
+        : "No address, transaction or block hash/height found.";
+    },
+    // describeError explains a failed lookup, or returns null when the node
+    // just has no such item or the input isn't one.
+    describeError: function (error) {
+      const code = error ? error.code : undefined;
+      const message = (error && error.message) || "";
+      switch (code) {
+        case undefined:
+        case GrpcCode.NotFound:
+        case GrpcCode.InvalidArgument:
+          return null;
+        case GrpcCode.ResourceExhausted:
+          return "The node is busy (a request limit was reached). Try again shortly.";
+        case GrpcCode.Aborted:
+          return "The chain changed during the lookup. Try again.";
+        case GrpcCode.Unavailable:
+          if (MISSING_INDEXES[message]) {
+            const [index, things] = MISSING_INDEXES[message];
+            return `This node runs without ${index}, so it can't look up ${things}.`;
+          }
+          return `Couldn't reach the node: ${message}`;
+        case GrpcCode.Unknown:
+          return `Couldn't reach the node: ${message}`;
+        default:
+          return `The node returned an error: ${message}`;
+      }
+    },
+    // recordError keeps a lookup failure to report if nothing is found.
+    recordError: function (error) {
+      const message = this.describeError(error);
+      if (message && !this.lookupErrors.includes(message)) {
+        this.lookupErrors.push(message);
+      }
     },
     determineNetwork: function () {
       return this.network;
     },
+    // searchLink opens a hash clicked in the results, e.g. a block's
+    // transaction.
+    searchLink: function (value) {
+      this.input = value;
+      this.searchBCHD(value);
+    },
     populateAddressData: async function (addr) {
       try {
-        var addrUtxoResult = await this.grpc.getAddressUtxos({
+        const utxoQuery = {
           address: addr,
           includeMempool: true,
-          includeTokenMetadata: true,
-        });
+          includeTokenMetadata: this.nodeIndexes.slp !== false,
+        };
+        var addrUtxoResult;
+        try {
+          addrUtxoResult = await this.grpc.getAddressUtxos(utxoQuery);
+        } catch (error) {
+          // bchd aborts this call when the chain reorganizes during it.
+          if (!error || error.code !== GrpcCode.Aborted) {
+            throw error;
+          }
+          addrUtxoResult = await this.grpc.getAddressUtxos(utxoQuery);
+        }
         var addrResult = await this.grpc.getAddressTransactions({
           address: addr,
-          nbFetch: 10000,
+          nbFetch: MAX_ADDRESS_TXS,
         });
         this.address = addr;
         var total = 0;
@@ -229,8 +316,11 @@ export default {
         this.addressData["legacy"] = bchaddr.toLegacyAddress(addr);
         this.addressData["cash"] = bchaddr.toCashAddress(addr);
         this.addressData["slp"] = bchaddr.toSlpAddress(addr);
+        this.addressData["token_aware"] =
+          toTokenAware(this.addressData["cash"]) || "";
+        const confirmed = addrResult.getConfirmedTransactionsList().length;
         this.addressData["confirmed_transactions"] =
-          addrResult.getConfirmedTransactionsList().length;
+          confirmed >= MAX_ADDRESS_TXS ? `${MAX_ADDRESS_TXS}+` : confirmed;
         this.addressData["unconfirmed_transactions"] =
           addrResult.getUnconfirmedTransactionsList().length;
         const _tokens = new Map();
@@ -321,7 +411,7 @@ export default {
             .map((a) => this.parseCashToken(a.getCashToken()))
         );
       } catch (error) {
-        this.result = "Address not found.";
+        this.result = this.describeError(error) || "Address not found.";
       }
     },
     populateBlockData: async function (input) {
@@ -332,14 +422,20 @@ export default {
       try {
         var blockResult = "";
         if (blockFinder === "height") {
-          blockResult = await this.grpc.getBlockInfo({ index: input });
+          blockResult = await this.grpc.getBlock({ index: Number(input) });
         } else {
-          blockResult = await this.grpc.getBlockInfo({
+          blockResult = await this.grpc.getBlock({
             hash: input,
             reversedHashOrder: true,
           });
         }
-        var blockInfo = blockResult.getInfo();
+        var blockInfo = blockResult.getBlock().getInfo();
+        const hashes = blockResult
+          .getBlock()
+          .getTransactionDataList()
+          .map((td) => this.convertHash(td.getTransactionHash_asU8()));
+        this.blockData["transaction_count"] = hashes.length;
+        this.blockData["transactions"] = hashes.slice(0, MAX_BLOCK_TXS_SHOWN);
         this.block = this.convertHash(blockInfo.getHash());
         this.blockData["height"] = blockInfo.getHeight();
         this.blockData["version"] = blockInfo.getVersion();
@@ -363,6 +459,7 @@ export default {
         this.blockData["median_time"] = blockInfo.getMedianTime();
         return true;
       } catch (error) {
+        this.recordError(error);
         return false;
       }
     },
@@ -371,7 +468,8 @@ export default {
         var txResult = await this.grpc.getTransaction({
           hash: input,
           reversedHashOrder: true,
-          includeTokenMetadata: true,
+          // bchd refuses the whole call for metadata without an SLP index.
+          includeTokenMetadata: this.nodeIndexes.slp !== false,
         });
         this.transaction = input;
         var tx = txResult.getTransaction();
@@ -386,6 +484,7 @@ export default {
         );
         this.transactionData["inputs"] = tx.getInputsList();
         this.transactionData["outputs"] = tx.getOutputsList();
+        this.setFee(tx);
         // set some slp properties
         this.transactionData["slp_action"] = tx
           .getSlpTransactionInfo()
@@ -423,7 +522,7 @@ export default {
           }
         });
         // set token metadata for valid slp transaction
-        if (this.transactionData["slp_valid"]) {
+        if (this.transactionData["slp_valid"] && txResult.getTokenMetadata()) {
           const tm = txResult.getTokenMetadata();
           const _id = Buffer.from(tm.getTokenId_asU8()).toString("hex");
           const _tmObj = { token_id: _id, name: "", ticker: "" };
@@ -529,7 +628,28 @@ export default {
         }
         return true;
       } catch (error) {
+        this.recordError(error);
         return false;
+      }
+    },
+    // setFee sets the transaction's fee from its input values, which bchd
+    // fills in from the outputs they spend. Coinbase transactions pay none.
+    setFee: function (tx) {
+      const inputs = tx.getInputsList();
+      const isCoinbase =
+        inputs.length === 1 &&
+        inputs[0]
+          .getOutpoint()
+          .getHash_asU8()
+          .every((b) => b === 0);
+      if (isCoinbase) {
+        return;
+      }
+      const sum = (items) => items.reduce((s, item) => s + item.getValue(), 0);
+      const fee = sum(inputs) - sum(tx.getOutputsList());
+      if (fee >= 0) {
+        this.transactionData["fee"] = fee;
+        this.transactionData["fee_rate"] = (fee / tx.getSize()).toFixed(2);
       }
     },
     populateDoubleSpendProof: async function (txid, dat) {
@@ -635,6 +755,12 @@ export default {
       this.blockData = this.defaultBlockData();
       this.transaction = "";
       this.transactionData = this.defaultTransactionData();
+      this.lookupErrors = [];
+    },
+    // defaultNodeIndexes is used until the node reports its indexes; null
+    // means unknown.
+    defaultNodeIndexes: function () {
+      return { tx: null, addr: null, slp: null };
     },
     defaultAddressData: function () {
       return {
@@ -643,6 +769,7 @@ export default {
         utxos: 0,
         legacy: "",
         slp: "",
+        token_aware: "",
         confirmed_transactions: 0,
         unconfirmed_transactions: 0,
         tokens: [],
@@ -663,6 +790,8 @@ export default {
         next_block_hash: "",
         size: 0,
         median_time: 0,
+        transaction_count: 0,
+        transactions: [],
       };
     },
     defaultTransactionData: function () {
@@ -683,6 +812,8 @@ export default {
         slp_parse_error: "",
         dsproof_score: null,
         dsproof: null,
+        fee: null,
+        fee_rate: null,
       };
     },
     updateNetwork: async function () {
@@ -690,6 +821,7 @@ export default {
       this.infoResult = "Not connected (select another server)";
       const node = this.nodes.find((n) => n.url === this.selectedNetwork);
       this.network = node ? node.network : MAINNET;
+      this.nodeIndexes = this.defaultNodeIndexes();
       this.grpc = this.newGrpcClient();
       // Wait for the node to report its network so routes use it.
       await this.getInfo();
@@ -712,6 +844,11 @@ export default {
         }
         this.network =
           NETWORK_NAMES[blockInfo.getBitcoinNet()] || this.network;
+        this.nodeIndexes = {
+          tx: blockInfo.getTxIndex(),
+          addr: blockInfo.getAddrIndex(),
+          slp: blockInfo.getSlpIndex(),
+        };
         var blockHash = this.convertHash(blockInfo.getBestBlockHash());
         var blockHeight = blockInfo.getBestHeight();
         this.infoResult =
