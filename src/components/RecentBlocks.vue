@@ -15,7 +15,7 @@
   <div id="recentblocks">
     <h2>Recent Blocks</h2>
     <div class="table-container">
-      <table class="table is-bordered is-striped" align="center">
+      <table class="table is-bordered is-striped">
         <thead>
           <tr>
             <th class="height">Height</th>

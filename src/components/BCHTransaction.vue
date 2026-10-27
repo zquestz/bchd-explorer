@@ -14,7 +14,7 @@
 
 <template>
   <div id="bchtransaction">
-    <table class="table is-bordered is-striped" align="center">
+    <table class="table is-bordered is-striped">
       <thead>
         <tr><th colspan="2">{{transaction}}</th></tr>
       </thead>
@@ -129,7 +129,6 @@
     <h2 v-else>{{transactionData['inputs'].length}} Inputs</h2>
     <table
       class="table is-bordered is-striped"
-      align="center"
       v-for="item in transactionData['inputs']"
       v-bind:key="'in-' + item.getIndex()"
     >
@@ -200,7 +199,6 @@
     <h2 v-else>{{transactionData['outputs'].length}} Outputs</h2>
     <table
       class="table is-bordered is-striped"
-      align="center"
       v-for="item in transactionData['outputs']"
       v-bind:key="'out-' + item.getIndex()"
     >

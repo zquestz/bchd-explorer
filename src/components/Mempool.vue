@@ -31,7 +31,7 @@
 
     <template v-if="mempool">
       <p v-if="error" class="has-text-centered"><strong>{{error}}</strong></p>
-      <table class="table is-bordered is-striped" align="center">
+      <table class="table is-bordered is-striped">
         <tbody>
           <tr>
             <td>Unconfirmed Transactions</td>
@@ -66,7 +66,7 @@
         <h2>Double Spend Proofs</h2>
         <p v-if="!mempool.proofs.length">None in the mempool.</p>
         <div v-else class="table-container">
-          <table class="table is-bordered is-striped" align="center">
+          <table class="table is-bordered is-striped">
             <thead>
               <tr>
                 <th>Transaction</th>
@@ -101,7 +101,7 @@
         </p>
         <Pager :page="page" :pages="pageCount" @change="page = $event" />
         <div class="table-container">
-          <table class="table is-bordered is-striped" align="center">
+          <table class="table is-bordered is-striped">
             <thead>
               <tr>
                 <th>Transaction</th>

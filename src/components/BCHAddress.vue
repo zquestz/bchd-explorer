@@ -15,7 +15,7 @@
 
 <template>
   <div id="bchaddress">
-    <table class="table is-bordered is-striped" align="center">
+    <table class="table is-bordered is-striped">
       <thead>
         <tr><th colspan="2">{{address}}</th></tr>
       </thead>
@@ -23,11 +23,13 @@
         <tr>
           <td>Balance</td>
           <td v-if="addressData['utxos_loading']" role="status"><span class="loader inline-loader"></span>Loading&hellip;</td>
+          <td v-else-if="addressData['utxo_error']">Unavailable</td>
           <td v-else>{{addressData['balance']}} BCH</td>
         </tr>
         <tr>
           <td>Satoshis</td>
           <td v-if="addressData['utxos_loading']"><span class="loader inline-loader"></span>Loading&hellip;</td>
+          <td v-else-if="addressData['utxo_error']">Unavailable</td>
           <td v-else>{{addressData['satoshis']}}</td>
         </tr>
         <tr>
@@ -57,6 +59,7 @@
         <tr>
           <td>UTXOs</td>
           <td v-if="addressData['utxos_loading']"><span class="loader inline-loader"></span>Loading&hellip;</td>
+          <td v-else-if="addressData['utxo_error']">Unavailable</td>
           <td v-else>{{addressData['utxos']}}</td>
         </tr>
       </tbody>
@@ -68,7 +71,7 @@
       <h2>Transactions</h2>
       <Pager :page="txPage" :pages="txPages" :more="txMore" @change="txPage = $event" />
       <div class="table-container">
-        <table class="table is-bordered is-striped" align="center">
+        <table class="table is-bordered is-striped">
           <thead>
             <tr>
               <th>Transaction</th>
@@ -108,7 +111,7 @@
       <h2>Unspent Outputs</h2>
       <Pager :page="utxoPage" :pages="pageCount(addressData['utxo_list'])" @change="utxoPage = $event" />
       <div class="table-container">
-        <table class="table is-bordered is-striped" align="center">
+        <table class="table is-bordered is-striped">
           <thead>
             <tr>
               <th>Output</th>
@@ -143,7 +146,9 @@ import Pager from "./Pager.vue";
 import ResultLink from "./ResultLink.vue";
 import { formatAge, formatTime } from "../format";
 
-const PAGE_SIZE = 50;
+// The rows on a page of each list. BCHDExplorer fetches the transactions a
+// page at a time, and a full page tells there may be more.
+export const PAGE_SIZE = 50;
 
 export default {
   name: "bchaddress",

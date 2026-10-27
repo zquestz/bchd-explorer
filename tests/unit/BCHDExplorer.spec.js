@@ -365,6 +365,10 @@ describe("BCHDExplorer.vue searching", () => {
     expect(wrapper.vm.result).toBe("");
     expect(txRows(wrapper).length).toBe(3);
     expect(wrapper.text()).toContain("The node is busy (a request limit was reached). Try again shortly.");
+    // Not a balance of 0.
+    for (const label of ["Balance", "Satoshis", "UTXOs"]) {
+      expect(cell(wrapper, label).text()).toBe("Unavailable");
+    }
   });
 
   it("drops a page that arrives after another address was searched", async () => {

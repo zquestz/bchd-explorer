@@ -23,7 +23,7 @@
       <ResultLink v-if="blockData['next_block_hash']" type="block" :value="blockData['height'] + 1" label="Next →" :network="network" />
       <span v-else class="disabled">Next →</span>
     </nav>
-    <table class="table is-bordered is-striped" align="center">
+    <table class="table is-bordered is-striped">
       <thead>
         <tr><th colspan="2">{{block}}</th></tr>
       </thead>
@@ -82,7 +82,7 @@
       <h2 v-if="blockData['transaction_count'] === 1">1 Transaction</h2>
       <h2 v-else>{{blockData['transaction_count']}} Transactions</h2>
       <Pager :page="txPage" :pages="pageCount" @change="txPage = $event" />
-      <table class="table is-bordered is-striped" align="center">
+      <table class="table is-bordered is-striped">
         <thead>
           <tr>
             <th class="tx-index">Index</th>

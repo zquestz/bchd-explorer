@@ -15,7 +15,7 @@
   <div id="cashtokenaddress">
     <h2 v-if="tokens.length">CashToken Balances</h2>
     <div v-for="token in tokens" :key="token.category">
-      <table class="table is-bordered is-striped" align="center">
+      <table class="table is-bordered is-striped">
         <tbody>
           <tr>
             <td>Category</td>

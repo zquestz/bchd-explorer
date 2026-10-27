@@ -16,7 +16,7 @@
   <div id="slpaddress">
     <h2 v-if="tokens.length">SLP Balances and Token Metadata</h2>
     <div v-for="(token, index) in tokens" :key="index">
-      <table class="table is-bordered is-striped" align="center">
+      <table class="table is-bordered is-striped">
         <tbody>
           <tr>
             <td>Balance</td>

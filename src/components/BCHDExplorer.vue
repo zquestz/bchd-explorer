@@ -107,7 +107,7 @@
       >
         <h2>Mempool</h2>
         <div class="table-container">
-          <table class="table is-bordered is-striped" align="center">
+          <table class="table is-bordered is-striped">
             <thead>
               <tr>
                 <th>Unconfirmed Transactions</th>
@@ -170,7 +170,7 @@ import { BchrpcClient, GrpcCode, pb } from "../bchrpc";
 import { parseAddress } from "../address";
 import { fromTokenAware, toTokenAware } from "../cashaddr";
 import { toHex, toUtf8 } from "../hex";
-import BCHAddress from "./BCHAddress.vue";
+import BCHAddress, { PAGE_SIZE as ADDRESS_PAGE_SIZE } from "./BCHAddress.vue";
 import BCHBlock from "./BCHBlock.vue";
 import BCHTransaction from "./BCHTransaction.vue";
 import Logo from "./Logo.vue";
@@ -188,9 +188,7 @@ const MAINNET = "mainnet";
 // routes for its testnet4 servers, so links shared then still use it.
 const LEGACY_ROUTE_NETWORKS = { testnet3: TESTNET4 };
 
-// An address's transactions are fetched this many at a time, a page of its
-// page. bchd lists them newest first.
-const ADDRESS_PAGE_SIZE = 50;
+
 // The block height bchd reports for unspent outputs still in the mempool
 // (mining.UnminedHeight).
 const UNMINED_HEIGHT = 0x7fffffff;
@@ -456,9 +454,7 @@ export default {
     isStale: function (token) {
       return token !== undefined && token !== this.searchToken;
     },
-    debug(val) {
-      window.console.log(val);
-    },
+
     search: async function () {
       this.searchBCHD(this.input);
     },
@@ -947,8 +943,9 @@ export default {
       );
       this.addressData["utxos_loading"] = false;
     },
-    // fetchAddressPage fetches a page of an address's transactions:
-    // ADDRESS_PAGE_SIZE confirmed ones, newest first, with the count bchd
+    // fetchAddressPage fetches a page of an address's transactions, as
+    // BCHAddress pages them: ADDRESS_PAGE_SIZE confirmed ones, newest first
+    // as bchd lists them, with the count bchd
     // gives, and the unconfirmed ones bchd lists with every page.
     fetchAddressPage: async function (client, addr, page) {
       const res = await client.getAddressTransactions({
@@ -1593,8 +1590,9 @@ export default {
     this.currentQuery = undefined;
     this.searchingTimer = null;
     this.mempoolToken = 0;
+    // mounted() connects and fetches the status line first; this refreshes
+    // it.
     if (this.getInfoBar) {
-      this.getInfo();
       this.infoInterval = setInterval(() => {
         this.getInfo();
       }, 60000);
@@ -1607,7 +1605,6 @@ export default {
 };
 </script>
 
-<!-- Add "scoped" attribute to limit CSS to this component only -->
 <style>
 [v-cloak] {
   display: none;
