@@ -264,7 +264,7 @@ describe("BCHDExplorer.vue searching", () => {
       outputs: [{ value: 700, address: ADDRESS }],
     });
     const client = fakeClient({
-      getAddressTransactions: () => addressTransactions({ confirmed: [spend, receive], unconfirmed: [{ tx: pending, addedTime: 1700002000 }] }),
+      getAddressTransactions: () => addressTransactions({ confirmed: [spend, receive], unconfirmed: [{ tx: pending, addedTime: 1700002000 }], count: 2 }),
       getAddressUtxos: () => unspentOutputs([
         { txid: hexHash(3), vout: 1, value: 1500, height: 903 },
         { txid: hexHash(4), vout: 0, value: 700, height: 0x7fffffff, cashToken: { category: CATEGORY, bitfield: 0x22 } },
@@ -274,7 +274,8 @@ describe("BCHDExplorer.vue searching", () => {
     await settle();
     await wrapper.vm.searchBCHD("bitcoincash:" + ADDRESS);
     await settle();
-    const list = wrapper.vm.addressData.transaction_list;
+    const page = wrapper.vm.addressData.transaction_page;
+    const list = page.unconfirmed.concat(page.confirmed);
     expect(list.map((t) => [t.txid, t.height, t.net])).toEqual([
       [hexHash(4), null, 700],
       [hexHash(3), 903, -3500],
@@ -290,24 +291,149 @@ describe("BCHDExplorer.vue searching", () => {
     expect(document.title).toBe(`Address ${ADDRESS.slice(0, 10)}\u2026 \u00b7 BCHD Explorer`);
   });
 
-  it("pages long address lists and notes bchd's cap", async () => {
-    const many = [];
-    for (let i = 0; i < 10000; i++) {
-      many.push(transaction({ txid: hexHash(0x100000 + i), height: 50000 - i, confirmations: 1 + i, timestamp: 1700000000 }));
-    }
-    const client = fakeClient({ getAddressTransactions: () => addressTransactions({ confirmed: many }) });
+  it("fetches an address's transactions a page at a time, with the node's count", async () => {
+    const client = historyClient(120);
     const { wrapper } = await mountExplorer({ client });
     await settle();
     await wrapper.vm.searchBCHD("bitcoincash:" + ADDRESS);
     await settle();
-    expect(wrapper.vm.addressData.confirmed_transactions).toBe("10000+");
-    expect(wrapper.text()).toContain("Only the newest 10000 confirmed transactions are listed.");
-    expect(wrapper.find(".pager").text()).toContain("Page 1 of 200");
-    wrapper.find(".pager a").trigger("click");
-    await settle(2);
-    expect(wrapper.find(".pager").text()).toContain("Page 2 of 200");
+    expect(cell(wrapper, "Confirmed Transactions").text()).toBe("120");
+    const pager = () => wrapper.find(".address-list .pager");
+    expect(pager().text()).toContain("Page 1 of 3");
+    expect(txRows(wrapper).length).toBe(50);
+    // The first page, then the second in the background.
+    expect(pageQueries(client)).toEqual([[0, 50], [50, 50]]);
+
+    await clickNext(wrapper);
+    expect(pager().text()).toContain("Page 2 of 3");
+    expect(txRows(wrapper)[0]).toBe(hexHash(0x100000 + 50));
+    // The second page was ready; the third is fetched behind it.
+    expect(pageQueries(client)).toEqual([[0, 50], [50, 50], [100, 50]]);
+
+    await clickNext(wrapper);
+    expect(txRows(wrapper).length).toBe(20);
+    expect(pager().findAll("a").map((a) => a.text())).toEqual(["\u2190 Previous"]);
+    expect(pageQueries(client).length).toBe(3);
+  });
+
+  it("pages without a count on nodes that predate it", async () => {
+    const client = historyClient(60, { count: false });
+    const { wrapper } = await mountExplorer({ client });
+    await settle();
+    await wrapper.vm.searchBCHD("bitcoincash:" + ADDRESS);
+    await settle();
+    expect(cell(wrapper, "Confirmed Transactions").text()).toBe("0");
+    const pager = () => wrapper.find(".address-list .pager");
+    expect(pager().text()).toContain("Page 1");
+    expect(pager().text()).not.toContain(" of ");
+    await clickNext(wrapper);
+    expect(txRows(wrapper).length).toBe(10);
+    expect(pager().findAll("a").map((a) => a.text())).toEqual(["\u2190 Previous"]);
+  });
+
+  it("shows the transactions before the unspent outputs arrive", async () => {
+    const utxos = deferred();
+    const client = historyClient(3);
+    client.getAddressUtxos = (query) => {
+      client.calls.push({ method: "getAddressUtxos", query });
+      return utxos.promise;
+    };
+    const { wrapper } = await mountExplorer({ client });
+    await settle();
+    await wrapper.vm.searchBCHD("bitcoincash:" + ADDRESS);
+    await settle();
+    // Both calls started together, and the page shows without the balance.
+    expect(client.calls.filter((c) => c.method.startsWith("getAddress")).map((c) => c.method).slice(0, 2).sort())
+      .toEqual(["getAddressTransactions", "getAddressUtxos"]);
+    expect(txRows(wrapper).length).toBe(3);
+    expect(cell(wrapper, "Balance").text()).toContain("Loading");
+    expect(wrapper.text()).toContain("Loading unspent outputs");
+
+    utxos.resolve(unspentOutputs([{ txid: hexHash(5), vout: 0, value: 1500, height: 900 }]));
+    await settle();
+    expect(cell(wrapper, "Balance").text()).toBe("0.000015 BCH");
+    expect(wrapper.text()).not.toContain("Loading unspent outputs");
+  });
+
+  it("keeps the transactions when the unspent outputs fail", async () => {
+    const client = historyClient(3);
+    client.getAddressUtxos = () => Promise.reject(grpcError(Code.ResourceExhausted, "too many calls"));
+    const { wrapper } = await mountExplorer({ client });
+    await settle();
+    await wrapper.vm.searchBCHD("bitcoincash:" + ADDRESS);
+    await settle();
+    expect(wrapper.vm.result).toBe("");
+    expect(txRows(wrapper).length).toBe(3);
+    expect(wrapper.text()).toContain("The node is busy (a request limit was reached). Try again shortly.");
+  });
+
+  it("drops a page that arrives after another address was searched", async () => {
+    const late = deferred();
+    const client = historyClient(120);
+    const pageOf = client.getAddressTransactions;
+    client.getAddressTransactions = (q) => (q.nbSkip === 50 && q.address.endsWith(ADDRESS) ? late.promise : pageOf(q));
+    const { wrapper } = await mountExplorer({ client });
+    await settle();
+    await wrapper.vm.searchBCHD("bitcoincash:" + ADDRESS);
+    await settle();
+    await wrapper.vm.searchBCHD(P2SH32);
+    await settle();
+
+    late.resolve(addressTransactions({ confirmed: [transaction({ txid: hexHash(0xbad), height: 1, confirmations: 1 })], count: 120 }));
+    await settle();
+    await clickNext(wrapper);
+    expect(txRows(wrapper)).not.toContain(hexHash(0xbad));
+    expect(txRows(wrapper)[0]).toBe(hexHash(0x100000 + 50));
   });
 });
+
+// historyClient returns a fake node whose address has n confirmed
+// transactions, newest first, paged as bchd pages them, with the count unless
+// count is false.
+function historyClient(n, { count = true } = {}) {
+  const history = Array.from({ length: n }, (_, i) =>
+    transaction({ txid: hexHash(0x100000 + i), height: 50000 - i, confirmations: 1 + i, timestamp: 1700000000 })
+  );
+  return fakeClient({
+    getAddressTransactions: ({ nbSkip = 0, nbFetch = 100 }) =>
+      addressTransactions({ confirmed: history.slice(nbSkip, nbSkip + nbFetch), count: count ? n : 0 }),
+  });
+}
+
+// pageQueries lists the [nbSkip, nbFetch] of each page of transactions asked
+// for.
+function pageQueries(client) {
+  return client.calls.filter((c) => c.method === "getAddressTransactions").map((c) => [c.query.nbSkip, c.query.nbFetch]);
+}
+
+// txRows returns the txids of the address page's transaction rows.
+function txRows(wrapper) {
+  return wrapper
+    .findAll(".address-list")[0]
+    .findAll("tbody tr")
+    .filter((r) => r.findAll("td").length === 4)
+    .map((r) => r.find("td").text())
+    .map((label) => {
+      const [start, end] = label.split("\u2026");
+      return hexHashLike(start, end);
+    });
+}
+
+// hexHashLike recovers a shortened txid of the form hexHash makes.
+function hexHashLike(start, end) {
+  for (let i = 0x100000; i < 0x100200; i++) {
+    const h = hexHash(i);
+    if (h.startsWith(start) && h.endsWith(end)) {
+      return h;
+    }
+  }
+  return `${start}\u2026${end}`;
+}
+
+async function clickNext(wrapper) {
+  wrapper.findAll(".address-list .pager a").filter((a) => a.text().includes("Next"))[0].trigger("click");
+  await settle();
+}
 
 describe("BCHDExplorer.vue node errors", () => {
   it("retries an address lookup the node aborted for a reorg", async () => {
@@ -324,13 +450,19 @@ describe("BCHDExplorer.vue node errors", () => {
     const { wrapper } = await mountExplorer({ client });
     await settle();
     await wrapper.vm.searchBCHD("bitcoincash:" + ADDRESS);
+    await settle();
     expect(attempts).toBe(2);
     expect(wrapper.vm.result).toBe("");
+    expect(wrapper.vm.addressData.utxo_error).toBe("");
+    expect(wrapper.vm.addressData.utxos_loading).toBe(false);
   });
 
   it("explains missing indexes, limits and unreachable nodes", async () => {
     const cases = [
-      [{ getAddressUtxos: () => { throw grpcError(Code.Unavailable, "addrindex required"); } }, "bitcoincash:" + ADDRESS,
+      [{
+        getAddressUtxos: () => { throw grpcError(Code.Unavailable, "addrindex required"); },
+        getAddressTransactions: () => { throw grpcError(Code.Unavailable, "addrindex required"); },
+      }, "bitcoincash:" + ADDRESS,
         "This node runs without an address index (--addrindex), so it can't look up addresses."],
       [{ getTransaction: () => { throw grpcError(Code.Unavailable, "txindex required"); } }, TXID,
         "This node runs without a transaction index (--txindex), so it can't look up transactions."],

@@ -177,9 +177,11 @@ export function unspentOutputs(outputs) {
 
 // addressTransactions builds a GetAddressTransactionsResponse. Confirmed
 // transactions are newest first, as bchd returns them; unconfirmed ones are
-// { tx, addedTime }.
-export function addressTransactions({ confirmed = [], unconfirmed = [] }) {
+// { tx, addedTime }. count is the address's number of confirmed transactions,
+// which nodes before it leave 0.
+export function addressTransactions({ confirmed = [], unconfirmed = [], count = 0 }) {
   const res = new pb.GetAddressTransactionsResponse();
+  res.setConfirmedCount(count);
   confirmed.forEach((tx) => res.addConfirmedTransactions(tx));
   unconfirmed.forEach(({ tx, addedTime }) => {
     const m = new pb.MempoolTransaction();

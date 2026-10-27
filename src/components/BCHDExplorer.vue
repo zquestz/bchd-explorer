@@ -87,6 +87,7 @@
           :address="address"
           :addressData="addressData"
           :network="network"
+          :loadTransactions="loadAddressPage"
         />
       </div>
       <div class="container results" v-show="block.length" v-cloak>
@@ -187,9 +188,9 @@ const MAINNET = "mainnet";
 // routes for its testnet4 servers, so links shared then still use it.
 const LEGACY_ROUTE_NETWORKS = { testnet3: TESTNET4 };
 
-// bchd returns at most this many transactions per address query, newest
-// first.
-const MAX_ADDRESS_TXS = 10000;
+// An address's transactions are fetched this many at a time, a page of its
+// page. bchd lists them newest first.
+const ADDRESS_PAGE_SIZE = 50;
 // The block height bchd reports for unspent outputs still in the mempool
 // (mining.UnminedHeight).
 const UNMINED_HEIGHT = 0x7fffffff;
@@ -786,142 +787,182 @@ export default {
     // populateAddressData looks up an address, given as parseAddress returns.
     populateAddressData: async function (parsed, token) {
       const addr = parsed.cash;
+      const client = this.grpc;
+      // Both calls start at once. The page shows when the first page of
+      // transactions arrives, and the balance and unspent outputs follow,
+      // which take bchd much longer for a busy address.
+      const utxos = this.fetchAddressUtxos(client, addr);
+      // Handled below, once the page shows.
+      utxos.catch(() => {});
+      let page;
       try {
-        const utxoQuery = {
-          address: addr,
-          includeMempool: true,
-          includeTokenMetadata: this.nodeIndexes.slp !== false,
-        };
-        var addrUtxoResult;
-        try {
-          addrUtxoResult = await this.grpc.getAddressUtxos(utxoQuery);
-        } catch (error) {
-          // bchd aborts this call when the chain reorganizes during it.
-          if (!error || error.code !== GrpcCode.Aborted) {
-            throw error;
-          }
-          addrUtxoResult = await this.grpc.getAddressUtxos(utxoQuery);
-        }
-        var addrResult = await this.grpc.getAddressTransactions({
-          address: addr,
-          nbFetch: MAX_ADDRESS_TXS,
-        });
-        if (this.isStale(token)) {
-          return;
-        }
-        this.address = addr;
-        var total = 0;
-        addrUtxoResult.getOutputsList().forEach(function (a) {
-          total += a.getValue();
-        });
-        this.addressData["utxos"] = addrUtxoResult.getOutputsList().length;
-        this.addressData["satoshis"] = total;
-        this.addressData["balance"] = sb.toBitcoin(total);
-        this.addressData["legacy"] = parsed.legacy;
-        this.addressData["cash"] = parsed.cash;
-        this.addressData["slp"] = parsed.slp;
-        this.addressData["token_aware"] =
-          toTokenAware(this.addressData["cash"]) || "";
-        const confirmed = addrResult.getConfirmedTransactionsList().length;
-        this.addressData["confirmed_transactions"] =
-          confirmed >= MAX_ADDRESS_TXS ? `${MAX_ADDRESS_TXS}+` : confirmed;
-        this.addressData["unconfirmed_transactions"] =
-          addrResult.getUnconfirmedTransactionsList().length;
-        const _tokens = new Map();
-        const tokenMetadata = new Map();
-        addrUtxoResult.getTokenMetadataList().forEach((tm) => {
-          const _id = toHex(tm.getTokenId_asU8());
-          const _tmObj = { token_id: _id, name: "", ticker: "" };
-          tokenMetadata.set(_id, _tmObj);
-          if (tm.hasV1Fungible()) {
-            _tmObj.name = tm.getV1Fungible().getTokenName();
-            _tmObj.ticker = tm.getV1Fungible().getTokenTicker();
-            _tmObj.document_url =
-              tm.getV1Fungible().getTokenDocumentUrl() !== ""
-                ? tm.getV1Fungible().getTokenDocumentUrl()
-                : "NA";
-            _tmObj.document_hash =
-              tm.getV1Fungible().getTokenDocumentHash() !== ""
-                ? tm.getV1Fungible().getTokenDocumentHash()
-                : "NA";
-            _tmObj.mint_baton_txid = toHex(
-              tm.getV1Fungible().getMintBatonHash_asU8().slice().reverse()
-            );
-            _tmObj.mint_baton_vout = tm.getV1Fungible().getMintBatonVout();
-          } else if (tm.hasV1Nft1Group()) {
-            _tmObj.name = tm.getV1Nft1Group().getTokenName();
-            _tmObj.ticker = tm.getV1Nft1Group().getTokenTicker();
-            _tmObj.document_url =
-              tm.getV1Nft1Group().getTokenDocumentUrl() !== ""
-                ? tm.getV1Nft1Group().getTokenDocumentUrl()
-                : "NA";
-            _tmObj.document_hash = tm
-              .getV1Nft1Group()
-              .getTokenDocumentHash_asB64()
-              ? tm.getV1Nft1Group().getTokenDocumentHash()
-              : "NA";
-            _tmObj.mint_baton_txid = toHex(
-              tm.getV1Nft1Group().getMintBatonHash_asU8().slice().reverse()
-            );
-            _tmObj.mint_baton_vout = tm.getV1Nft1Group().getMintBatonVout();
-          } else if (tm.hasV1Nft1Child()) {
-            _tmObj.name = tm.getV1Nft1Child().getTokenName();
-            _tmObj.ticker = tm.getV1Nft1Child().getTokenTicker();
-            _tmObj.document_url =
-              tm.getV1Nft1Child().getTokenDocumentUrl() !== ""
-                ? tm.getV1Nft1Child().getTokenDocumentUrl()
-                : "NA";
-            _tmObj.document_hash = tm
-              .getV1Nft1Child()
-              .getTokenDocumentHash_asB64()
-              ? toUtf8(tm.getV1Nft1Child().getTokenDocumentHash_asU8())
-              : "NA";
-            _tmObj.nft_group_id = toHex(tm.getV1Nft1Child().getGroupId_asU8());
-          }
-        });
-        addrUtxoResult.getOutputsList().forEach(function (a) {
-          if (a.getSlpToken()) {
-            const tok = a.getSlpToken();
-            const tokenID = toHex(tok.getTokenId_asU8());
-            if (_tokens.has(tokenID)) {
-              const _tok = _tokens.get(tokenID);
-              _tok.balance = _tok.balance.add(tok.getAmount());
-            } else {
-              _tokens.set(tokenID, {
-                token_id: tokenID,
-                // SLPAddress reads token_metadata unconditionally, so fall
-                // back to placeholders when the node returned none.
-                token_metadata: tokenMetadata.get(tokenID) || {
-                  token_id: tokenID,
-                  name: "NA",
-                  ticker: "tokens",
-                },
-                decimals: tok.getDecimals(),
-                balance: Big(tok.getAmount()),
-              });
-            }
-          }
-        });
-        this.addressData["tokens"] = Array.from(_tokens).map((v) => v[1]);
-        this.addressData["cashtokens"] = this.summarizeCashTokens(
-          addrUtxoResult
-            .getOutputsList()
-            .map((a) => this.parseCashToken(a.getCashToken()))
-        );
-        this.addressData["transaction_list"] = this.listAddressTransactions(
-          addr,
-          addrResult
-        );
-        this.addressData["utxo_list"] = this.listUtxos(
-          addrUtxoResult,
-          tokenMetadata
-        );
+        page = await this.fetchAddressPage(client, addr, 1);
       } catch (error) {
         if (this.isStale(token)) {
           return;
         }
         this.result = this.describeError(error) || "Address not found.";
+        return;
       }
+      if (this.isStale(token)) {
+        return;
+      }
+      this.address = addr;
+      this.addressData["legacy"] = parsed.legacy;
+      this.addressData["cash"] = parsed.cash;
+      this.addressData["slp"] = parsed.slp;
+      this.addressData["token_aware"] =
+        toTokenAware(this.addressData["cash"]) || "";
+      // Nodes older than the count leave it 0.
+      this.addressData["confirmed_transactions"] = page.count;
+      this.addressData["unconfirmed_transactions"] = page.unconfirmed.length;
+      this.addressData["transaction_page"] = page;
+      this.addressData["utxos_loading"] = true;
+      this.showAddressUtxos(utxos, token);
+    },
+    // fetchAddressUtxos asks for an address's unspent outputs, once more
+    // when bchd aborts the call because the chain reorganized during it.
+    fetchAddressUtxos: function (client, addr) {
+      const query = {
+        address: addr,
+        includeMempool: true,
+        includeTokenMetadata: this.nodeIndexes.slp !== false,
+      };
+      return client.getAddressUtxos(query).catch((error) => {
+        if (!error || error.code !== GrpcCode.Aborted) {
+          throw error;
+        }
+        return client.getAddressUtxos(query);
+      });
+    },
+    // showAddressUtxos fills in the balance, token balances and unspent
+    // outputs of the address shown once its unspent outputs arrive.
+    showAddressUtxos: async function (utxos, token) {
+      let addrUtxoResult;
+      try {
+        addrUtxoResult = await utxos;
+      } catch (error) {
+        if (this.isStale(token)) {
+          return;
+        }
+        this.addressData["utxos_loading"] = false;
+        this.addressData["utxo_error"] =
+          this.describeError(error) || "Couldn't load the unspent outputs.";
+        return;
+      }
+      if (this.isStale(token)) {
+        return;
+      }
+      var total = 0;
+      addrUtxoResult.getOutputsList().forEach(function (a) {
+        total += a.getValue();
+      });
+      this.addressData["utxos"] = addrUtxoResult.getOutputsList().length;
+      this.addressData["satoshis"] = total;
+      this.addressData["balance"] = sb.toBitcoin(total);
+      const _tokens = new Map();
+      const tokenMetadata = new Map();
+      addrUtxoResult.getTokenMetadataList().forEach((tm) => {
+        const _id = toHex(tm.getTokenId_asU8());
+        const _tmObj = { token_id: _id, name: "", ticker: "" };
+        tokenMetadata.set(_id, _tmObj);
+        if (tm.hasV1Fungible()) {
+          _tmObj.name = tm.getV1Fungible().getTokenName();
+          _tmObj.ticker = tm.getV1Fungible().getTokenTicker();
+          _tmObj.document_url =
+            tm.getV1Fungible().getTokenDocumentUrl() !== ""
+              ? tm.getV1Fungible().getTokenDocumentUrl()
+              : "NA";
+          _tmObj.document_hash =
+            tm.getV1Fungible().getTokenDocumentHash() !== ""
+              ? tm.getV1Fungible().getTokenDocumentHash()
+              : "NA";
+          _tmObj.mint_baton_txid = toHex(
+            tm.getV1Fungible().getMintBatonHash_asU8().slice().reverse()
+          );
+          _tmObj.mint_baton_vout = tm.getV1Fungible().getMintBatonVout();
+        } else if (tm.hasV1Nft1Group()) {
+          _tmObj.name = tm.getV1Nft1Group().getTokenName();
+          _tmObj.ticker = tm.getV1Nft1Group().getTokenTicker();
+          _tmObj.document_url =
+            tm.getV1Nft1Group().getTokenDocumentUrl() !== ""
+              ? tm.getV1Nft1Group().getTokenDocumentUrl()
+              : "NA";
+          _tmObj.document_hash = tm
+            .getV1Nft1Group()
+            .getTokenDocumentHash_asB64()
+            ? tm.getV1Nft1Group().getTokenDocumentHash()
+            : "NA";
+          _tmObj.mint_baton_txid = toHex(
+            tm.getV1Nft1Group().getMintBatonHash_asU8().slice().reverse()
+          );
+          _tmObj.mint_baton_vout = tm.getV1Nft1Group().getMintBatonVout();
+        } else if (tm.hasV1Nft1Child()) {
+          _tmObj.name = tm.getV1Nft1Child().getTokenName();
+          _tmObj.ticker = tm.getV1Nft1Child().getTokenTicker();
+          _tmObj.document_url =
+            tm.getV1Nft1Child().getTokenDocumentUrl() !== ""
+              ? tm.getV1Nft1Child().getTokenDocumentUrl()
+              : "NA";
+          _tmObj.document_hash = tm
+            .getV1Nft1Child()
+            .getTokenDocumentHash_asB64()
+            ? toUtf8(tm.getV1Nft1Child().getTokenDocumentHash_asU8())
+            : "NA";
+          _tmObj.nft_group_id = toHex(tm.getV1Nft1Child().getGroupId_asU8());
+        }
+      });
+      addrUtxoResult.getOutputsList().forEach(function (a) {
+        if (a.getSlpToken()) {
+          const tok = a.getSlpToken();
+          const tokenID = toHex(tok.getTokenId_asU8());
+          if (_tokens.has(tokenID)) {
+            const _tok = _tokens.get(tokenID);
+            _tok.balance = _tok.balance.add(tok.getAmount());
+          } else {
+            _tokens.set(tokenID, {
+              token_id: tokenID,
+              // SLPAddress reads token_metadata unconditionally, so fall
+              // back to placeholders when the node returned none.
+              token_metadata: tokenMetadata.get(tokenID) || {
+                token_id: tokenID,
+                name: "NA",
+                ticker: "tokens",
+              },
+              decimals: tok.getDecimals(),
+              balance: Big(tok.getAmount()),
+            });
+          }
+        }
+      });
+      this.addressData["tokens"] = Array.from(_tokens).map((v) => v[1]);
+      this.addressData["cashtokens"] = this.summarizeCashTokens(
+        addrUtxoResult
+          .getOutputsList()
+          .map((a) => this.parseCashToken(a.getCashToken()))
+      );
+      this.addressData["utxo_list"] = this.listUtxos(
+        addrUtxoResult,
+        tokenMetadata
+      );
+      this.addressData["utxos_loading"] = false;
+    },
+    // fetchAddressPage fetches a page of an address's transactions:
+    // ADDRESS_PAGE_SIZE confirmed ones, newest first, with the count bchd
+    // gives, and the unconfirmed ones bchd lists with every page.
+    fetchAddressPage: async function (client, addr, page) {
+      const res = await client.getAddressTransactions({
+        address: addr,
+        nbSkip: (page - 1) * ADDRESS_PAGE_SIZE,
+        nbFetch: ADDRESS_PAGE_SIZE,
+      });
+      const { unconfirmed, confirmed } = this.listAddressTransactions(addr, res);
+      return { page, count: res.getConfirmedCount(), unconfirmed, confirmed };
+    },
+    // loadAddressPage fetches a page of the transactions of the address
+    // shown, for BCHAddress.
+    loadAddressPage: function (page) {
+      return this.fetchAddressPage(this.grpc, this.address, page);
     },
     populateBlockData: async function (input, token) {
       // Only plain decimal input is a height; a loose numeric comparison
@@ -1208,10 +1249,10 @@ export default {
         ancestor: path.length > 1 ? path[path.length - 1] : "",
       };
     },
-    // listAddressTransactions summarizes an address's transactions for its
-    // page, unconfirmed first, then newest first as bchd returns them, with
-    // the address's net change in satoshis. Plain frozen objects keep 10,000
-    // transactions cheap for Vue.
+    // listAddressTransactions summarizes the transactions of a reply for an
+    // address's page, its unconfirmed ones and its confirmed ones newest
+    // first as bchd returns them, with the address's net change in satoshis.
+    // Plain frozen objects keep them cheap for Vue.
     listAddressTransactions: function (addr, addrResult) {
       // bchd gives addresses without their prefix.
       const bare = addr.split(":").pop();
@@ -1243,7 +1284,10 @@ export default {
         timestamp: tx.getTimestamp(),
         net: net(tx),
       }));
-      return Object.freeze(unconfirmed.concat(confirmed));
+      return {
+        unconfirmed: Object.freeze(unconfirmed),
+        confirmed: Object.freeze(confirmed),
+      };
     },
     // listUtxos summarizes an address's unspent outputs for its page,
     // unconfirmed first, then newest first.
@@ -1357,8 +1401,13 @@ export default {
         unconfirmed_transactions: 0,
         tokens: [],
         cashtokens: [],
-        transaction_list: [],
+        // The first page of transactions (see fetchAddressPage).
+        transaction_page: null,
         utxo_list: [],
+        // Whether the unspent outputs, and with them the balances, are
+        // still loading, and why they failed to.
+        utxos_loading: false,
+        utxo_error: "",
       };
     },
     defaultBlockData: function () {

@@ -1,8 +1,10 @@
 # bchrpc JavaScript bindings
 
 `bchrpc_pb.js` and `bchrpc_pb_service.js` are copied unmodified from
-[gcash/bchd](https://github.com/gcash/bchd) at tag `v0.22.3` (commit `136ede9`),
-directory `bchrpc/pb-js`. They are generated code; do not edit them by hand.
+[gcash/bchd](https://github.com/gcash/bchd) master at commit `6972fd5b`, after
+`v0.22.3`, directory `bchrpc/pb-js`. That commit adds `confirmed_count` to the
+address transaction replies; switch to the tag of the release that includes it.
+They are generated code; do not edit them by hand.
 They are covered by bchd's ISC license, included here as `LICENSE`.
 
 To update them for a newer bchd release, copy both files from that release's

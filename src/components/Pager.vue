@@ -13,11 +13,12 @@
 
 <!-- Previous/next page controls; emits "change" with the new page. -->
 <template>
-  <nav class="pager" v-if="pages > 1">
+  <nav class="pager" v-if="hasNext || page > 1">
     <a v-if="page > 1" href="#" @click.prevent="$emit('change', page - 1)">&larr; Previous</a>
     <span v-else class="disabled">&larr; Previous</span>
-    <span>Page {{page}} of {{pages}}</span>
-    <a v-if="page < pages" href="#" @click.prevent="$emit('change', page + 1)">Next &rarr;</a>
+    <span v-if="pages === null">Page {{page}}</span>
+    <span v-else>Page {{page}} of {{pages}}</span>
+    <a v-if="hasNext" href="#" @click.prevent="$emit('change', page + 1)">Next &rarr;</a>
     <span v-else class="disabled">Next &rarr;</span>
   </nav>
 </template>
@@ -25,8 +26,15 @@
 <script>
 export default {
   name: "pager",
-  props: ["page", "pages"],
-  emits: ["change"]
+  // pages is null when the number of pages isn't known; more then tells
+  // whether there is a next page.
+  props: ["page", "pages", "more"],
+  emits: ["change"],
+  computed: {
+    hasNext: function() {
+      return this.pages === null ? !!this.more : this.page < this.pages;
+    }
+  }
 };
 </script>
 
